@@ -1,0 +1,406 @@
+/* Estira: lógica de la app. Sin dependencias, funciona abriendo index.html o instalada en el móvil.
+   Truco para probar: añade ?rapido a la dirección y todo va 10 veces más deprisa (?rapido=30 para 30 veces). */
+(() => {
+'use strict';
+
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const ESC = params.has('rapido') ? (Number(params.get('rapido')) > 0 ? Number(params.get('rapido')) : 10) : 1;
+
+const DURACIONES = [10, 15, 20, 30, 45];
+// Cuánto se mantiene cada postura según la duración de la sesión. El estiramiento estático suele hacerse 30-60 s;
+// para relajar y no ir con prisa subo a 45-90 s: más tiempo cuanto más larga es la sesión.
+const HOLD_POR_DURACION = { 10: 45, 15: 55, 20: 60, 30: 75, 45: 90 };
+const AMBIENTES = [
+  { id: 'pads', t: 'Pads suaves' }, { id: 'gotas', t: 'Gotas' },
+  { id: 'olas', t: 'Olas suaves' }, { id: 'cuencos', t: 'Cuencos' }
+];
+const AMBIENTE_ANTIGUO = { lluvia: 'gotas', mar: 'olas' };      // nombres de versiones anteriores
+const DEFECTO = { zonas: ['cuello', 'espalda'], minutos: 20, ambientes: ['pads'], volumen: 70, campanas: true };
+const INTRO = 45, CIERRE_MIN = 45, T_NORMAL = 6, T_CAMBIO_POSICION = 10, T_LADO = 4, HOLD_MAX = 100;
+
+/* ---------- ajustes e historial (con try/catch: en modo privado el almacenamiento puede fallar) ---------- */
+function leer(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function escribir(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+let ajustes = (() => {
+  const j = Object.assign({}, DEFECTO, leer('estira.ajustes', {}));
+  j.zonas = (j.zonas || []).filter(z => ZONAS.some(x => x.id === z));
+  if (!j.zonas.length) j.zonas = DEFECTO.zonas.slice();
+  if (!DURACIONES.includes(j.minutos)) j.minutos = DEFECTO.minutos;
+  delete j.hold;                                  // ya no se elige: lo decide la app
+  j.ambientes = (j.ambientes || []).map(a => AMBIENTE_ANTIGUO[a] || a)
+    .filter((a, i, l) => AMBIENTES.some(x => x.id === a) && l.indexOf(a) === i);
+  j.volumen = Math.min(100, Math.max(0, Number(j.volumen) || 0));
+  j.campanas = j.campanas !== false;
+  return j;
+})();
+const guardar = () => escribir('estira.ajustes', ajustes);
+
+/* ---------- utilidades ---------- */
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const fmtHold = s => (s % 60 === 0 ? (s / 60) + ' min' : s < 60 ? s + ' s' : fmt(s));
+const zonaDe = id => ZONAS.find(z => z.id === id);
+function barajar(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* ---------- creador de sesiones ----------
+   1) calcula cuántas posturas caben en la duración elegida (más tiempo = más posturas y algo más largas)
+   2) elige posturas repartidas por igual entre las zonas marcadas y NUNCA repite una dentro de la sesión.
+      De una sesión a otra da prioridad a las que llevas más tiempo sin hacer (se apunta en el propio móvil)
+      y a las que no has hecho nunca, así van saliendo las variantes nuevas.
+   3) las ordena de pie → sentado → arrodillado → tumbado, para no estar subiendo y bajando
+   4) ajusta el tiempo de cada postura y la relajación final para que la suma sea exactamente la duración */
+function construirSesion(a) {
+  const total = a.minutos * 60;
+  const disponible = total - INTRO - CIERRE_MIN;
+  const usos = leer('estira.usos', {});
+  const ruido = 3 * 864e5;                          // algo de azar entre las que llevan parecido sin hacerse
+  const porRecencia = z => POSTURAS.filter(p => p.zona === z)
+    .map(p => ({ p, k: (usos[p.id] || 0) + Math.random() * ruido }))
+    .sort((x, y) => x.k - y.k).map(x => x.p);
+  const colas = a.zonas.map(porRecencia);
+  const otras = ZONAS.map(z => z.id).filter(z => !a.zonas.includes(z)).map(porRecencia);
+
+  // Tiempo objetivo por postura según la duración. Nunca se alargan más allá de HOLD_MAX: si las zonas marcadas
+  // no tienen posturas para llenar el tiempo, se completa con posturas de otras zonas (y se avisa).
+  const holdObj = HOLD_POR_DURACION[a.minutos] || 60;
+  // floor y no round: si hay que elegir, mejor posturas algo más largas que más cortas
+  const objetivo = Math.max(2, Math.floor(disponible / (holdObj + 7)));
+
+  const zonasIdx = id => ZONAS.findIndex(z => z.id === id);
+  const elegidas = [];
+  let holds = 0;
+  const tomar = (grupo, deOtraZona) => {              // reparte por igual entre las zonas del grupo
+    let quedan = true;
+    while (quedan && holds < objetivo) {
+      quedan = false;
+      for (const c of grupo) {
+        if (!c.length) continue;
+        quedan = true;
+        const p = c.shift(); elegidas.push({ p, extra: deOtraZona }); holds += p.lados ? 2 : 1;
+        if (holds >= objetivo) break;
+      }
+    }
+  };
+  tomar(colas, false);
+  if (holds < objetivo) tomar(otras, true);
+  elegidas.sort((x, y) => (x.p.etapa - y.p.etapa) || (zonasIdx(x.p.zona) - zonasIdx(y.p.zona)));
+  const bloques = elegidas;
+
+  let sumaTrans = 0; holds = 0;
+  bloques.forEach((b, i) => {
+    const prev = bloques[i - 1];
+    b.trans = !prev ? T_NORMAL : (prev.p.etapa !== b.p.etapa ? T_CAMBIO_POSICION : T_NORMAL);
+    sumaTrans += b.trans;
+    if (b.p.lados) { sumaTrans += T_LADO; holds += 2; } else holds += 1;
+  });
+  // Todas las posturas duran lo mismo (con 1 s de diferencia como mucho). El sobrante se reparte entre ellas
+  // para que la suma cuadre exacta y la relajación final se quede en su duración fija.
+  const base = total - INTRO - CIERRE_MIN - sumaTrans;
+  // Tope por postura (HOLD_MAX): si aun así sobrara tiempo, se queda en la relajación final.
+  let h = Math.floor(base / holds), resto = 0;
+  if (h >= HOLD_MAX) h = HOLD_MAX;
+  else { h = Math.max(30, h); resto = Math.max(0, base - h * holds); }
+  const extra = Math.floor(resto / holds), conUno = resto % holds;
+  let k = 0;
+  const durHold = () => h + extra + (k++ < conUno ? 1 : 0);
+
+  const pasos = [{ tipo: 'respira', dur: INTRO, bloque: -1 }];
+  bloques.forEach((b, i) => {
+    pasos.push({ tipo: 'prepara', dur: b.trans, bloque: i, p: b.p, lado: 0 });
+    if (b.p.lados) {
+      pasos.push({ tipo: 'postura', dur: durHold(), bloque: i, p: b.p, lado: 0 });
+      pasos.push({ tipo: 'cambio', dur: T_LADO, bloque: i, p: b.p, lado: 1 });
+      pasos.push({ tipo: 'postura', dur: durHold(), bloque: i, p: b.p, lado: 1 });
+    } else {
+      pasos.push({ tipo: 'postura', dur: durHold(), bloque: i, p: b.p, lado: null });
+    }
+  });
+  const cierre = total - pasos.reduce((x, s) => x + s.dur, 0);
+  pasos.push({ tipo: 'cierre', dur: cierre, bloque: bloques.length });
+
+  const prefijo = []; let acc = 0;
+  pasos.forEach(s => { prefijo.push(acc); acc += s.dur; });
+  const hold = Math.round((h + resto / holds) / 5) * 5;                   // solo para mostrarlo: "unos 1 min"
+  return { pasos, bloques, hold, cierre, total: acc, prefijo, minutos: a.minutos, deOtras: bloques.filter(b => b.extra).length };
+}
+
+let sesionActual = construirSesion(ajustes);
+const rehacer = () => { sesionActual = construirSesion(ajustes); };
+
+/* ---------- pantallas ---------- */
+const PANTALLAS = ['home', 'preview', 'session', 'fin'];
+function mostrar(id) {
+  PANTALLAS.forEach(p => { const e = $('#' + p); if (e) e.hidden = (p !== id); });
+  window.scrollTo(0, 0);
+}
+
+/* ---------- inicio ---------- */
+function semana() {
+  const lim = Date.now() - 7 * 864e5;
+  return leer('estira.historial', []).filter(t => t > lim).length;
+}
+
+function pintarInicio() {
+  const n = semana();
+  $('#subtitulo').textContent = n > 0
+    ? `Esta semana llevas ${n} ${n === 1 ? 'sesión' : 'sesiones'}. Qué bien te estás cuidando.`
+    : 'Estiramientos guiados para soltar tensión.';
+
+  $('#zonas').innerHTML = ZONAS.map(z => {
+    const cuantas = POSTURAS.filter(p => p.zona === z.id).length;
+    return `<button class="zona" data-z="${z.id}" aria-pressed="${ajustes.zonas.includes(z.id)}">
+      <span class="tick">✓</span><b>${z.nombre}</b><small>${cuantas} posturas</small></button>`;
+  }).join('');
+  $('#duracion').innerHTML = DURACIONES.map(m =>
+    `<button class="chip" data-m="${m}" aria-pressed="${ajustes.minutos === m}">${m} min</button>`).join('');
+  $('#ambientes').innerHTML = AMBIENTES.map(a =>
+    `<button class="chip" data-a="${a.id}" aria-pressed="${ajustes.ambientes.includes(a.id)}">${a.t}</button>`).join('');
+  $('#volumen').value = ajustes.volumen;
+  $('#campanas').setAttribute('aria-pressed', String(ajustes.campanas));
+  pintarResumen();
+}
+
+function pintarResumen() {
+  const s = sesionActual;
+  $('#resumen').innerHTML = `<b>${s.minutos} min</b> · ${s.bloques.length} posturas · unos ${fmtHold(s.hold)} cada una`;
+  $('#nota-dur').textContent = `Cada postura se mantiene unos ${fmtHold(s.hold)}, sin prisas. Las de un solo lado se hacen en los dos lados.`
+    + (s.deOtras ? ` Para llenar el tiempo se añaden ${s.deOtras} ${s.deOtras === 1 ? 'postura' : 'posturas'} de otras zonas.` : '');
+}
+
+$('#zonas').addEventListener('click', e => {
+  const b = e.target.closest('.zona'); if (!b) return;
+  const z = b.dataset.z, i = ajustes.zonas.indexOf(z);
+  if (i >= 0) { if (ajustes.zonas.length === 1) return; ajustes.zonas.splice(i, 1); } else ajustes.zonas.push(z);
+  ajustes.zonas = ZONAS.map(x => x.id).filter(id => ajustes.zonas.includes(id));
+  guardar(); rehacer(); pintarInicio();
+});
+$('#duracion').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  ajustes.minutos = Number(b.dataset.m); guardar(); rehacer(); pintarInicio();
+});
+$('#ambientes').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const a = b.dataset.a, i = ajustes.ambientes.indexOf(a);
+  if (i >= 0) ajustes.ambientes.splice(i, 1); else ajustes.ambientes.push(a);
+  guardar(); pintarInicio();
+  // Al marcar un ambiente suena unos segundos para que lo escuches sin empezar una sesión.
+  if (i < 0) Sonido.probar(a, ajustes.volumen / 100); else Sonido.pararPrueba();
+});
+$('#volumen').addEventListener('input', e => { ajustes.volumen = Number(e.target.value); guardar(); Sonido.volumen(ajustes.volumen / 100); });
+$('#volumen').addEventListener('change', () => {         // al soltar el control, suena una muestra al nuevo volumen
+  if (!Sonido.enMarcha() && ajustes.ambientes.length) Sonido.probar(ajustes.ambientes[0], ajustes.volumen / 100);
+});
+$('#campanas').addEventListener('click', () => {
+  ajustes.campanas = !ajustes.campanas; guardar(); Sonido.campanas(ajustes.campanas);
+  $('#campanas').setAttribute('aria-pressed', String(ajustes.campanas));
+});
+
+/* ---------- vista previa ---------- */
+function pintarPrevia() {
+  const s = sesionActual;
+  $('#prev-sub').textContent = `${s.minutos} minutos · ${s.bloques.length} posturas · ${s.pasos.filter(x => x.tipo === 'postura').length} tiempos de ${fmtHold(s.hold)}`;
+  const filas = [`<li class="extra"><span class="n">~</span><div><b>Respiración inicial</b><small>Inhala 4 · exhala 6</small></div><span class="t">${fmt(INTRO)}</span></li>`];
+  s.bloques.forEach((b, i) => {
+    const dosLados = !!b.p.lados;
+    const dur = s.pasos.filter(x => x.tipo === 'postura' && x.bloque === i).reduce((a, x) => a + x.dur, 0);
+    filas.push(`<li><span class="n">${i + 1}</span><div><b>${b.p.nombre}</b>
+      <small>${zonaDe(b.p.zona).corto}${dosLados ? ' · cada lado' : ''}${b.extra ? ' · para completar' : ''}</small></div>
+      <span class="t">${fmt(dur)}</span></li>`);
+  });
+  filas.push(`<li class="extra"><span class="n">☾</span><div><b>Relajación final</b><small>Respira y suelta el cuerpo</small></div><span class="t">${fmt(s.cierre)}</span></li>`);
+  $('#lista').innerHTML = filas.join('');
+}
+$('#ver').addEventListener('click', () => { pintarPrevia(); mostrar('preview'); });
+$('#atras').addEventListener('click', () => { pintarInicio(); mostrar('home'); });
+$('#otra').addEventListener('click', () => { rehacer(); pintarPrevia(); });
+
+/* ---------- pantalla encendida durante la sesión ---------- */
+let wl = null;
+async function pedirPantalla() {
+  try {
+    if ('wakeLock' in navigator && !wl) {
+      wl = await navigator.wakeLock.request('screen');
+      wl.addEventListener('release', () => { wl = null; });
+    }
+  } catch (e) { wl = null; }
+}
+function soltarPantalla() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+
+/* ---------- sesión en marcha ---------- */
+let S = null;
+const durMs = paso => paso.dur * 1000 / ESC;
+const transcurrido = () => (S.pausa || Date.now()) - S.t0;
+const CIRC = 2 * Math.PI * 54;
+
+const TEXTO_RESPIRA = 'Inhala por la nariz contando cuatro y suelta el aire despacio contando seis. Deja caer los hombros y la mandíbula.';
+const TEXTO_CIERRE = 'Quédate quieto, cierra los ojos y respira con calma. Siente el cuerpo más suelto y pesado.';
+
+function empezar() {
+  if (S) return;
+  const ses = sesionActual;
+  // Se apuntan las posturas de hoy para que la próxima sesión use otras, y se prepara ya la siguiente.
+  const usos = leer('estira.usos', {}), hoy = Date.now();
+  ses.bloques.forEach(b => { usos[b.p.id] = hoy; });
+  escribir('estira.usos', usos);
+  rehacer();
+  S = { ses, pasos: ses.pasos, i: 0, t0: Date.now(), pausa: null, timer: null, ultimaEtiqueta: '' };
+  mostrar('session');
+  Sonido.iniciar({ volumen: ajustes.volumen / 100, campanas: ajustes.campanas, ambientes: ajustes.ambientes });
+  pedirPantalla();
+  entrarPaso(0);
+  S.timer = setInterval(tick, 200);
+}
+
+function entrarPaso(i) {
+  S.i = i; S.ultimaEtiqueta = '';
+  const paso = S.pasos[i], p = paso.p;
+  const respira = paso.tipo === 'respira' || paso.tipo === 'cierre';
+
+  // figura
+  const f = $('#figura'); f.className = 'figura'; f.innerHTML = '';
+  if (respira) {
+    f.classList.add('resp-card');
+    f.innerHTML = '<div class="resp"></div><div class="resp-txt" id="resp-txt">Inhala</div>';
+    if (S.pausa) f.firstChild.style.animationPlayState = 'paused';
+  } else {
+    if (paso.lado === 1) f.classList.add('espejo');
+    const img = new Image(); img.alt = p.nombre; img.decoding = 'async';
+    img.onerror = () => { f.classList.remove('espejo'); f.innerHTML = `<div class="vacio">${zonaDe(p.zona).icono}</div>`; };
+    img.src = p.img; f.appendChild(img);
+    // precarga la siguiente
+    const sig = S.pasos.slice(i + 1).find(x => x.p && x.p !== p);
+    if (sig) { const pre = new Image(); pre.src = sig.p.img; }
+  }
+
+  // textos
+  const fase = { respira: 'Respira', prepara: 'Prepárate', postura: 'Mantén y respira', cambio: 'Cambia de lado', cierre: 'Relajación final' }[paso.tipo];
+  $('#fase').textContent = fase;
+  $('#nombre').textContent = respira ? (paso.tipo === 'respira' ? 'Llega con calma' : 'Quédate así') : p.nombre;
+  $('#texto').textContent = respira ? (paso.tipo === 'respira' ? TEXTO_RESPIRA : TEXTO_CIERRE) : p.texto;
+  const lado = $('#lado');
+  if (!respira && p.lados && paso.lado !== null) { lado.hidden = false; lado.textContent = p.lados[paso.lado]; } else lado.hidden = true;
+
+  // campanas
+  if (paso.tipo === 'prepara') Sonido.campana('prepara');
+  else if (paso.tipo === 'postura' && paso.lado !== 1) Sonido.campana('postura');
+  else if (paso.tipo === 'cambio') Sonido.campana('lado');
+  else if (paso.tipo === 'cierre') Sonido.campana('postura');
+
+  pintarTiempo(0);
+}
+
+function pintarTiempo(ms) {
+  const paso = S.pasos[S.i], dur = durMs(paso);
+  const resta = Math.max(0, dur - ms);
+  $('#tiempo').textContent = fmt(Math.ceil(resta * ESC / 1000));
+  $('#avance').style.strokeDashoffset = String(CIRC * Math.min(1, ms / dur));
+
+  const hecho = S.ses.prefijo[S.i] + Math.min(paso.dur, ms * ESC / 1000);
+  $('#prog').style.width = (100 * hecho / S.ses.total) + '%';
+  const total = S.ses.bloques.length;
+  const donde = paso.bloque < 0 ? 'Inicio' : paso.bloque >= total ? 'Final' : `Postura ${paso.bloque + 1} de ${total}`;
+  const etiqueta = `<b>${donde}</b> · quedan ${fmt(S.ses.total - hecho)}`;
+  if (etiqueta !== S.ultimaEtiqueta) { S.ultimaEtiqueta = etiqueta; $('#meta').innerHTML = etiqueta; }
+
+  const t = $('#resp-txt');
+  if (t) { const c = (ms * ESC / 1000) % 10; const v = c < 4 ? 'Inhala' : 'Exhala'; if (t.textContent !== v) t.textContent = v; }
+}
+
+function tick() {
+  if (!S || S.pausa) return;
+  const ahora = Date.now();
+  let i = S.i, t0 = S.t0, cambio = false;
+  while (ahora - t0 >= durMs(S.pasos[i])) {         // si el móvil estuvo dormido, se pone al día de una vez
+    t0 += durMs(S.pasos[i]);
+    if (i === S.pasos.length - 1) { S.t0 = t0; terminar(true); return; }
+    i++; cambio = true;
+  }
+  if (cambio) { S.t0 = t0; entrarPaso(i); }
+  pintarTiempo(ahora - S.t0);
+}
+
+function alternarPausa() {
+  if (!S) return;
+  const b = $('#pausa'), resp = $('#figura .resp');
+  if (!S.pausa) {
+    S.pausa = Date.now(); Sonido.bajar(true);
+    b.textContent = '▶'; b.setAttribute('aria-label', 'Reanudar');
+    if (resp) resp.style.animationPlayState = 'paused';
+  } else {
+    S.t0 += Date.now() - S.pausa; S.pausa = null; Sonido.bajar(false);
+    b.textContent = '❚❚'; b.setAttribute('aria-label', 'Pausar');
+    if (resp) resp.style.animationPlayState = 'running';
+    pedirPantalla();
+  }
+}
+
+function saltar(dir) {
+  if (!S) return;
+  const ahora = S.pausa || Date.now();
+  if (dir > 0) {
+    if (S.i === S.pasos.length - 1) { terminar(true); return; }
+    S.t0 = ahora; entrarPaso(S.i + 1);
+  } else {
+    const retroceso = transcurrido() > 3000 / ESC || S.i === 0;
+    S.t0 = ahora; entrarPaso(retroceso ? S.i : S.i - 1);
+  }
+}
+
+function terminar(completa) {
+  if (!S) return;
+  clearInterval(S.timer); soltarPantalla();
+  const ses = S.ses; S = null;
+  $('#pausa').textContent = '❚❚'; $('#pausa').setAttribute('aria-label', 'Pausar');
+  $('#velo').hidden = true;
+  if (completa) {
+    const h = leer('estira.historial', []); h.push(Date.now()); escribir('estira.historial', h.slice(-200));
+    Sonido.campana('fin'); setTimeout(() => Sonido.parar(8), 3500);
+    $('#fin-txt').textContent = `${ses.bloques.length} posturas en ${ses.minutos} minutos. Tómate un momento antes de levantarte.`;
+    mostrar('fin');
+  } else {
+    Sonido.parar(2); pintarInicio(); mostrar('home');
+  }
+}
+
+$('#empezar').addEventListener('click', empezar);
+$('#empezar2').addEventListener('click', empezar);
+$('#pausa').addEventListener('click', alternarPausa);
+$('#next').addEventListener('click', () => saltar(1));
+$('#prev').addEventListener('click', () => saltar(-1));
+$('#salir').addEventListener('click', () => { $('#velo').hidden = false; $('#velo-seguir').focus(); });
+$('#velo-seguir').addEventListener('click', () => { $('#velo').hidden = true; });
+$('#velo-fin').addEventListener('click', () => terminar(false));
+$('#repetir').addEventListener('click', () => { rehacer(); empezar(); });
+$('#inicio').addEventListener('click', () => { pintarInicio(); mostrar('home'); });
+
+// En el ordenador: espacio pausa, flechas saltan, Esc pregunta si salir.
+document.addEventListener('keydown', e => {
+  if (!S) return;
+  if (e.key === ' ' || e.key === 'k') { e.preventDefault(); alternarPausa(); }
+  else if (e.key === 'ArrowRight') saltar(1);
+  else if (e.key === 'ArrowLeft') saltar(-1);
+  else if (e.key === 'Escape') { $('#velo').hidden = !$('#velo').hidden; }
+});
+
+// Al volver a la app (por ejemplo tras bloquear el móvil) recupera pantalla, sonido y tiempo.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !S) return;
+  pedirPantalla(); Sonido.despertar(); tick();
+});
+
+/* ---------- arranque ---------- */
+pintarInicio();
+mostrar('home');
+window.Estira = { sesion: () => sesionActual, estado: () => S, construirSesion, ajustes: () => ajustes };
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    // Al desarrollar en el propio ordenador no se usa el modo sin conexión, para ver siempre la última versión.
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+    if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {});
+  } else {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+})();
