@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Gimnasio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Rutina de gimnasio: apunta series, descansos, historial y medidas.">
+<meta name="theme-color" content="#11151c">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cuerpo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="gimnasio.css">
+</head>
+<body>
+<div class="wrap">
+  <a class="inicio-link" href="./">← Inicio</a>
+  <header class="top">
+    <div>
+    <h1>Gimnasio</h1>
+    <p class="sub">Cuatro días para ganar músculo. Haz los días en orden, el 1, 2, 3 y 4, en los huecos de gimnasio de tu semana. Si se te salta uno, sigue por el que toque.</p>
+    </div>
+    <button type="button" class="perfil-btn" id="perfil-btn" aria-pressed="false"><span class="av">P</span>Perfil</button>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="modo" role="group" aria-label="Cómo apuntar">
+    <span>Apuntar:</span>
+    <button type="button" id="modo-series">Serie por serie</button>
+    <button type="button" id="modo-texto">Texto rápido</button>
+  </div>
+  <main id="day" style="display:flex;flex-direction:column;gap:14px"></main>
+  <div class="sheet-bg" id="info-bg" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="info-titulo">
+      <div class="sheet-head"><h2 id="info-titulo"></h2><button type="button" class="hist-toggle" id="info-cerrar">Cerrar</button></div>
+      <p class="info-musc"><b>Trabaja:</b> <span id="info-musculo"></span></p>
+      <h3>Cómo se hace</h3>
+      <ol class="info-pasos" id="info-pasos"></ol>
+      <h3>Errores típicos</h3>
+      <ul class="info-err" id="info-errores"></ul>
+      <a class="info-video" id="info-video" href="#" target="_blank" rel="noopener">▶ Ver vídeos de la técnica en YouTube</a>
+    </div>
+  </div>
+  <div class="timer" id="timer" hidden role="timer" aria-live="polite">
+    <div class="timer-in">
+      <div class="t-label" id="t-label"></div>
+      <div class="t-time" id="t-time">0:00</div>
+      <button type="button" id="t-menos">−15 s</button>
+      <button type="button" id="t-mas">+30 s</button>
+      <button type="button" id="t-stop">Saltar</button>
+      <div class="t-bar"><i id="t-bar"></i></div>
+    </div>
+  </div>
+
+  <section class="rules" aria-label="Cómo entrenar">
+    <div class="rule"><h3>Intensidad</h3><p>Acaba cada serie a 1–2 repeticiones del fallo. En los ejercicios de aislamiento puedes llegar al fallo en la última serie.</p></div>
+    <div class="rule"><h3>Progresión</h3><p>Cuando hagas el número más alto de repeticiones en todas las series, sube el peso la próxima vez (2,5 kg o el siguiente disco).</p></div>
+    <div class="rule"><h3>Descansos</h3><p>2–3 minutos en los ejercicios grandes (press, remo, sentadilla) y 1–2 minutos en los de aislamiento.</p></div>
+    <div class="rule"><h3>Recorrido</h3><p>Baja controlado y llega bien abajo. El músculo crece más cuando trabaja estirado, así que no recortes la parte baja del movimiento.</p></div>
+    <div class="rule"><h3>Calentamiento</h3><p>5 minutos de cardio suave. Después, en cada ejercicio grande, haz las series de aproximación que salen en su ficha, con los kilos ya calculados.</p></div>
+    <div class="rule"><h3>Si has dormido poco</h3><p>Quita una serie de cada ejercicio y no vayas al fallo.</p></div>
+  </section>
+
+  <p class="sources">De dónde sale: entre 10 y 20 series por músculo a la semana dan buen resultado (<a href="https://barbend.com/scientifically-correct-number-sets-per-workout" target="_blank" rel="noopener">BarBend, sobre Pelland 2024</a>). La extensión de tríceps sobre la cabeza hizo crecer el tríceps más que la extensión en polea hacia abajo, y el curl femoral sentado más que el tumbado (<a href="https://www.strongerbyscience.com/?p=57800" target="_blank" rel="noopener">Stronger by Science, estudios de Maeo</a>). Sobre trabajar con el músculo estirado: <a href="https://outlift.com/long-muscle-length-training/" target="_blank" rel="noopener">Outlift</a> y <a href="https://mennohenselmans.com/these-are-the-best-exercises-to-build-muscle-science-based/" target="_blank" rel="noopener">Menno Henselmans</a>.</p>
+</div>
+
+<script src="gimnasio.js"></script>
+<script src="registro-sw.js"></script>
+</body>
+</html>

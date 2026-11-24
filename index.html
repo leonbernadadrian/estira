@@ -2,127 +2,101 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Estira</title>
+<title>Cuerpo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Estiramientos guiados para soltar tensión, con tiempos y sonidos relajantes.">
+<meta name="description" content="Gimnasio y estiramientos en una sola app.">
 <meta name="theme-color" content="#0c1d22">
 <meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Estira">
+<meta name="apple-mobile-web-app-title" content="Cuerpo">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css">
+<style>
+  :root { --bg:#0c1d22; --bg2:#14313a; --ink:#eaf4f2; --mute:#9db7b3; --line:rgba(255,255,255,.11); --ease:cubic-bezier(.23,1,.32,1); }
+  * { box-sizing: border-box; margin: 0; }
+  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none; background: var(--bg); color-scheme: dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto, sans-serif;
+    background: radial-gradient(120% 70% at 50% -10%, var(--bg2), var(--bg) 62%) fixed;
+    color: var(--ink); min-height: 100vh; min-height: 100dvh; line-height: 1.4; -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 560px; margin: 0 auto; min-height: 100vh; min-height: 100dvh;
+    padding: calc(env(safe-area-inset-top, 0px) + 40px) 20px calc(env(safe-area-inset-bottom, 0px) + 32px);
+    display: flex; flex-direction: column; justify-content: center; gap: 14px;
+    animation: entra .4s var(--ease) both;
+  }
+  @keyframes entra { from { opacity: 0; transform: translateY(10px); } }
+  h1 { font-size: 38px; letter-spacing: -.02em; font-weight: 650; }
+  .sub { color: var(--mute); font-size: 17px; margin: 4px 0 18px; }
+  a.opcion {
+    --c: #7fd4c4;
+    display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: center;
+    min-height: 132px; padding: 20px; border-radius: 28px; text-decoration: none; color: inherit;
+    border: 1.5px solid color-mix(in srgb, var(--c) 40%, transparent);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--c) 16%, transparent), rgba(255, 255, 255, .04));
+    transition: transform .14s var(--ease), border-color .2s;
+    touch-action: manipulation; -webkit-touch-callout: none;
+  }
+  a.opcion:active { transform: scale(.97); }
+  a.opcion.gim { --c: #f08a50; }
+  .ico { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--c); }
+  .ico svg { width: 38px; height: 38px; }
+  a.opcion b { display: block; font-size: 24px; font-weight: 650; letter-spacing: -.01em; }
+  a.opcion span { display: block; margin-top: 3px; color: var(--mute); font-size: 15px; }
+  .pie { color: var(--mute); font-size: 13px; text-align: center; margin-top: 18px; }
+  @media (hover: hover) and (pointer: fine) { a.opcion:hover { border-color: var(--c); } }
+  @media (prefers-reduced-motion: reduce) { main { animation: none; } }
+</style>
 </head>
 <body>
+<main>
+  <h1>Cuerpo</h1>
+  <p class="sub">¿Qué toca hoy?</p>
 
-<!-- ============ INICIO ============ -->
-<main id="home" class="screen">
-  <h1>Estira</h1>
-  <p class="sub" id="subtitulo">Estiramientos guiados para soltar tensión.</p>
-
-  <h2>Zonas del cuerpo</h2>
-  <div class="zonas" id="zonas"></div>
-
-  <h2>Duración</h2>
-  <div class="chips" id="duracion"></div>
-
-  <p class="nota" id="nota-dur"></p>
-
-  <h2>Sonido</h2>
-  <div class="chips" id="ambientes"></div>
-  <div class="fila">
-    <span class="l">Volumen</span>
-    <input type="range" id="volumen" min="0" max="100" value="70" aria-label="Volumen de la música">
-  </div>
-  <div class="fila">
-    <span class="l" id="l-campanas">Campana al cambiar de postura</span>
-    <button class="switch" id="campanas" role="switch" aria-labelledby="l-campanas" aria-pressed="true"></button>
-  </div>
-
-  <div class="bar">
-    <div class="in" style="flex-direction:column;align-items:stretch;gap:0">
-      <div class="resumen" id="resumen"></div>
-      <div style="display:flex;gap:10px">
-        <button class="btn ghost" id="ver">Ver sesión</button>
-        <button class="btn primary" id="empezar">Empezar</button>
-      </div>
+  <a class="opcion gim" href="gimnasio.html" id="op-gim">
+    <div class="ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>
     </div>
-  </div>
-</main>
+    <div><b>Gimnasio</b><span id="txt-gim">Rutina, series y progreso</span></div>
+  </a>
 
-<!-- ============ VISTA PREVIA ============ -->
-<main id="preview" class="screen" hidden>
-  <div class="topnav"><button class="atras" id="atras" aria-label="Volver">‹</button></div>
-  <h1>Tu sesión</h1>
-  <p class="sub" id="prev-sub"></p>
-  <ol class="lista" id="lista"></ol>
-  <div class="bar">
-    <div class="in">
-      <button class="btn ghost" id="otra">Otra combinación</button>
-      <button class="btn primary" id="empezar2">Empezar</button>
+  <a class="opcion est" href="estira.html" id="op-est">
+    <div class="ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 8v5m0 0l-3 7m3-7l3 7M5 10c3 1 5 1.5 7 1.5s4-.5 7-1.5"/></svg>
     </div>
-  </div>
+    <div><b>Estiramientos</b><span id="txt-est">Sesiones guiadas con tiempos y sonido</span></div>
+  </a>
+
+  <p class="pie">Tus datos se guardan en este dispositivo.</p>
 </main>
 
-<!-- ============ SESIÓN ============ -->
-<main id="session" class="screen" hidden>
-  <div class="s-top">
-    <button class="ctl-mini" id="salir" aria-label="Terminar sesión">✕</button>
-    <div class="s-meta" id="meta"></div>
-    <span></span>
-  </div>
-  <div class="prog" style="max-width:560px"><i id="prog"></i></div>
+<script>
+(() => {
+  const leer = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } };
+  const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
 
-  <div class="fase" id="fase" aria-live="polite"></div>
-  <div class="figura" id="figura"></div>
-  <div class="s-info">
-    <h3 id="nombre"></h3>
-    <span class="pill" id="lado" hidden></span>
-    <p id="texto"></p>
-  </div>
+  // Gimnasio: qué día de la rutina toca. Tras el día N toca el N+1 (tras el 4, el 1).
+  const DIAS = ['Pecho y tríceps', 'Espalda y bíceps', 'Pierna', 'Hombro y abdominales'];
+  const sesiones = leer('rutina-sesiones', []).filter(s => s && s.fin);
+  if (sesiones.length) {
+    const ultima = sesiones.slice().sort((a, b) => (b.fin || 0) - (a.fin || 0))[0];
+    const siguiente = ultima.dia >= 1 && ultima.dia <= 3 ? ultima.dia + 1 : 1;
+    const texto = ultima.fecha === hoy
+      ? `Hoy ya entrenaste ✓ · Siguiente: Día ${siguiente}, ${DIAS[siguiente - 1]}`
+      : `Toca el día ${siguiente}: ${DIAS[siguiente - 1]}`;
+    document.getElementById('txt-gim').textContent = texto;
+  }
 
-  <div class="s-timer">
-    <button class="ctl" id="prev" aria-label="Anterior">⏮</button>
-    <div class="anillo">
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle class="fondo" cx="60" cy="60" r="54"></circle>
-        <circle class="avance" id="avance" cx="60" cy="60" r="54" stroke-dasharray="339.292" stroke-dashoffset="0"></circle>
-      </svg>
-      <div class="tiempo" id="tiempo">0:00</div>
-    </div>
-    <button class="ctl" id="next" aria-label="Siguiente">⏭</button>
-  </div>
-  <div style="margin-top:14px">
-    <button class="ctl pausa" id="pausa" aria-label="Pausar">❚❚</button>
-  </div>
-</main>
-
-<!-- ============ FINAL ============ -->
-<main id="fin" class="screen" hidden>
-  <div class="flor">🌿</div>
-  <h1>Sesión completada</h1>
-  <p id="fin-txt"></p>
-  <div class="acciones">
-    <button class="btn primary" id="repetir">Repetir</button>
-    <button class="btn ghost" id="inicio">Volver al inicio</button>
-  </div>
-</main>
-
-<!-- ============ AVISO ============ -->
-<div class="velo" id="velo" hidden>
-  <div class="caja" role="dialog" aria-modal="true" aria-labelledby="velo-t">
-    <h4 id="velo-t">¿Terminar la sesión?</h4>
-    <p>Puedes pausarla si solo necesitas un descanso.</p>
-    <button class="btn primary" id="velo-seguir">Seguir</button>
-    <button class="btn ghost" id="velo-fin">Terminar</button>
-  </div>
-</div>
-
-<script src="data.js"></script>
-<script src="audio.js"></script>
-<script src="app.js"></script>
+  // Estiramientos: sesiones de la última semana.
+  const lim = Date.now() - 7 * 864e5;
+  const n = leer('estira.historial', []).filter(t => t > lim).length;
+  if (n > 0) document.getElementById('txt-est').textContent = `Esta semana: ${n} ${n === 1 ? 'sesión' : 'sesiones'}`;
+})();
+</script>
+<script src="registro-sw.js"></script>
 </body>
 </html>

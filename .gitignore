@@ -2,3 +2,6 @@
 _originales/
 herramientas/
 .claude/
+muestras/
+# Tus datos del gimnasio (peso, medidas, historial): NUNCA se suben a GitHub
+datos-privados/

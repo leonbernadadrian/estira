@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estira</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Estiramientos guiados para soltar tensión, con tiempos y sonidos relajantes.">
+<meta name="theme-color" content="#0c1d22">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cuerpo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ INICIO ============ -->
+<main id="home" class="screen">
+  <a class="inicio" href="./">← Inicio</a>
+  <h1>Estira</h1>
+  <p class="sub" id="subtitulo">Estiramientos guiados para soltar tensión.</p>
+
+  <h2>Zonas del cuerpo</h2>
+  <div class="zonas" id="zonas"></div>
+
+  <h2>Duración</h2>
+  <div class="chips" id="duracion"></div>
+
+  <p class="nota" id="nota-dur"></p>
+
+  <h2>Sonido</h2>
+  <div class="chips" id="ambientes"></div>
+  <div class="fila">
+    <span class="l">Volumen</span>
+    <input type="range" id="volumen" min="0" max="100" value="70" aria-label="Volumen de la música">
+  </div>
+  <div class="fila">
+    <span class="l" id="l-campanas">Campana al cambiar de postura</span>
+    <button class="switch" id="campanas" role="switch" aria-labelledby="l-campanas" aria-pressed="true"></button>
+  </div>
+
+  <div class="bar">
+    <div class="in" style="flex-direction:column;align-items:stretch;gap:0">
+      <div class="resumen" id="resumen"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn ghost" id="ver">Ver sesión</button>
+        <button class="btn primary" id="empezar">Empezar</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ============ VISTA PREVIA ============ -->
+<main id="preview" class="screen" hidden>
+  <div class="topnav"><button class="atras" id="atras" aria-label="Volver">‹</button></div>
+  <h1>Tu sesión</h1>
+  <p class="sub" id="prev-sub"></p>
+  <ol class="lista" id="lista"></ol>
+  <div class="bar">
+    <div class="in">
+      <button class="btn ghost" id="otra">Otra combinación</button>
+      <button class="btn primary" id="empezar2">Empezar</button>
+    </div>
+  </div>
+</main>
+
+<!-- ============ SESIÓN ============ -->
+<main id="session" class="screen" hidden>
+  <div class="s-top">
+    <button class="ctl-mini" id="salir" aria-label="Terminar sesión">✕</button>
+    <div class="s-meta" id="meta"></div>
+    <span></span>
+  </div>
+  <div class="prog" style="max-width:560px"><i id="prog"></i></div>
+
+  <div class="fase" id="fase" aria-live="polite"></div>
+  <div class="figura" id="figura"></div>
+  <div class="s-info">
+    <h3 id="nombre"></h3>
+    <span class="pill" id="lado" hidden></span>
+    <p id="texto"></p>
+  </div>
+
+  <div class="s-timer">
+    <button class="ctl" id="prev" aria-label="Anterior">⏮</button>
+    <div class="anillo">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="fondo" cx="60" cy="60" r="54"></circle>
+        <circle class="avance" id="avance" cx="60" cy="60" r="54" stroke-dasharray="339.292" stroke-dashoffset="0"></circle>
+      </svg>
+      <div class="tiempo" id="tiempo">0:00</div>
+    </div>
+    <button class="ctl" id="next" aria-label="Siguiente">⏭</button>
+  </div>
+  <div style="margin-top:14px">
+    <button class="ctl pausa" id="pausa" aria-label="Pausar">❚❚</button>
+  </div>
+</main>
+
+<!-- ============ FINAL ============ -->
+<main id="fin" class="screen" hidden>
+  <div class="flor">🌿</div>
+  <h1>Sesión completada</h1>
+  <p id="fin-txt"></p>
+  <div class="acciones">
+    <button class="btn primary" id="repetir">Repetir</button>
+    <button class="btn ghost" id="inicio">Volver al inicio</button>
+  </div>
+</main>
+
+<!-- ============ AVISO ============ -->
+<div class="velo" id="velo" hidden>
+  <div class="caja" role="dialog" aria-modal="true" aria-labelledby="velo-t">
+    <h4 id="velo-t">¿Terminar la sesión?</h4>
+    <p>Puedes pausarla si solo necesitas un descanso.</p>
+    <button class="btn primary" id="velo-seguir">Seguir</button>
+    <button class="btn ghost" id="velo-fin">Terminar</button>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="audio.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

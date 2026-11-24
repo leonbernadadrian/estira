@@ -1,7 +1,7 @@
 {
-  "name": "Estira · estiramientos guiados",
-  "short_name": "Estira",
-  "description": "Estiramientos guiados para soltar tensión, con tiempos y sonidos relajantes.",
+  "name": "Cuerpo · gimnasio y estiramientos",
+  "short_name": "Cuerpo",
+  "description": "Gimnasio y estiramientos guiados en una sola app.",
   "lang": "es",
   "start_url": "./index.html",
   "scope": "./",
