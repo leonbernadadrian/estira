@@ -592,6 +592,13 @@ function renderMed() {
         <label class="hist-toggle" for="importar" style="cursor:pointer">Importar un archivo</label>
         <input type="file" id="importar" accept="application/json,.json" hidden>
       </div>
+      <div class="cargar">
+        <p class="nota"><b>Cargar mi historial guardado.</b> Viaja dentro de la app, cifrado: escribe tu código para abrirlo.</p>
+        <div class="res-acciones">
+          <input class="codigo-in" id="codigo" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="24" aria-label="Código del historial">
+          <button type="button" class="fin-btn" id="cargar-historial">Cargar historial</button>
+        </div>
+      </div>
       <p class="nota" id="copia-estado"></p>
     </section>
 
@@ -601,6 +608,8 @@ function renderMed() {
     </section>`;
   $("exportar").addEventListener("click", exportarDatos);
   $("importar").addEventListener("change", e => { const f = e.target.files?.[0]; if (f) importarDatos(f); e.target.value = ""; });
+  $("cargar-historial").addEventListener("click", cargarHistorialCifrado);
+  $("codigo").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); cargarHistorialCifrado(); } });
   $("volver").addEventListener("click", () => { current = 0; try { localStorage.setItem("rutina-dia", 0); } catch {} render(); });
   $("f-perfil").addEventListener("submit", async e => {
     e.preventDefault(); document.activeElement?.blur?.();
@@ -712,23 +721,43 @@ async function exportarDatos() {
     estado("Archivo descargado: " + nombre);
   } catch { estado("Este navegador no deja descargar el archivo"); }
 }
+// Une los datos de una copia con los que ya hay, sin duplicar nada (se reconocen por su identificador).
+function aplicarPaquete(d, estado, pisarPerfil) {
+  const fusion = (actual, nuevos) => [...actual.filter(a => !(nuevos || []).some(b => b.id === a.id)), ...(nuevos || [])];
+  historial = fusion(historial, d.historial); sesiones = fusion(sesiones, d.sesiones); medidas = fusion(medidas, d.medidas);
+  if (d.perfil && (pisarPerfil || !Object.keys(perfil).length)) perfil = d.perfil;   // un perfil ya escrito aquí no se pisa al cargar el historial
+  guardarTodoLocal(); render();
+  estado(`Datos cargados: ${historial.length} anotaciones y ${sesiones.length} entrenamientos`);
+}
 async function importarDatos(file) {
   const estado = (t) => { const el = $("copia-estado"); if (el) el.textContent = t; };
   let d;
   try { d = JSON.parse(await file.text()); } catch { return estado("Ese archivo no es una copia de la rutina"); }
   if (!["rutina", "rutina-adrian"].includes(d?.app)) return estado("Ese archivo no es una copia de la rutina");
-  const grupos = [["historial", store], ["sesiones", storeSes], ["medidas", storeMed]];
-  if (store) {
-    let n = 0;
-    for (const [k, col] of grupos) for (const { id, ...r } of d[k] || []) { try { await col.doc(id).set(r); n++; } catch {} }
-    if (d.perfil && docPerfil) { try { await docPerfil.set(d.perfil); } catch {} }
-    estado(`Importado: ${n} registros`);
-  } else {
-    const fusion = (actual, nuevos) => [...actual.filter(a => !(nuevos || []).some(b => b.id === a.id)), ...(nuevos || [])];
-    historial = fusion(historial, d.historial); sesiones = fusion(sesiones, d.sesiones); medidas = fusion(medidas, d.medidas);
-    if (d.perfil) perfil = d.perfil;
-    guardarTodoLocal(); render(); estado("Datos importados");
-  }
+  aplicarPaquete(d, estado, true);
+}
+
+// Historial que viaja dentro de la app (datos.enc), cifrado con AES-256: sin el código no se puede leer.
+// El código se escribe aquí, en el móvil, y nunca se publica.
+async function descifrarHistorial(codigo) {
+  const res = await fetch("datos.enc", { cache: "no-store" });
+  if (!res.ok) throw new Error("sin-archivo");
+  const e = await res.json();
+  const de64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(codigo.toUpperCase().replace(/[^A-Z0-9]/g, "")), "PBKDF2", false, ["deriveKey"]);
+  const clave = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: de64(e.salt), iterations: e.iter, hash: "SHA-256" }, material, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const claro = await crypto.subtle.decrypt({ name: "AES-GCM", iv: de64(e.iv) }, clave, de64(e.datos));
+  return JSON.parse(new TextDecoder().decode(claro));
+}
+async function cargarHistorialCifrado() {
+  const estado = (t) => { const el = $("copia-estado"); if (el) el.textContent = t; };
+  const codigo = $("codigo").value;
+  if (codigo.replace(/[^a-z0-9]/gi, "").length < 16) return estado("Escribe el código completo (16 letras y números)");
+  estado("Abriendo el historial…");
+  let d;
+  try { d = await descifrarHistorial(codigo); }
+  catch (err) { return estado(err?.message === "sin-archivo" ? "No hay historial guardado en la app" : "Ese código no abre el historial. Revísalo y prueba otra vez."); }
+  aplicarPaquete(d, estado, false);
 }
 function guardarTodoLocal() {
   try {

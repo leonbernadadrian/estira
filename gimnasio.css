@@ -199,3 +199,6 @@ input, select, textarea { font-size: 16px; }
 .log input { font-size: 16px; }
 .inicio-link { align-self: flex-start; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; padding: 6px 0; margin-bottom: -10px; }
 .timer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+.cargar { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; }
+.cargar .nota { margin: 0; }
+.codigo-in { font: inherit; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; width: min(270px, 100%); font-variant-numeric: tabular-nums; }
