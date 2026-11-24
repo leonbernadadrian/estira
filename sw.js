@@ -4,7 +4,7 @@
    Si cambias archivos de la app, sube el número de CACHE para que se vuelvan a guardar todos. */
 importScripts('data.js');                       // para saber qué dibujos hay que guardar
 
-const CACHE = 'cuerpo-v2';
+const CACHE = 'cuerpo-v3';
 const BASE = ['./', 'index.html', 'estira.html', 'gimnasio.html', 'gimnasio.css', 'gimnasio.js', 'registro-sw.js',
               'styles.css', 'data.js', 'audio.js', 'app.js', 'manifest.webmanifest',
               'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
@@ -13,7 +13,9 @@ self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
     const lista = BASE.concat(POSTURAS.map(p => p.img));
-    await Promise.all(lista.map(u => c.add(u).catch(() => {})));   // si falta un archivo, no se cae todo
+    // cache: 'reload' = pregunta siempre a la red. GitHub Pages deja los archivos 10 min en la caché del navegador
+    // y sin esto se podía guardar de nuevo una copia vieja justo después de publicar una versión nueva.
+    await Promise.all(lista.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => {})));   // si falta un archivo, no se cae todo
     await self.skipWaiting();
   })());
 });
@@ -32,7 +34,9 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     const guardado = await c.match(r, { ignoreSearch: true });
-    const red = fetch(r).then(res => { if (res && res.ok) c.put(r, res.clone()); return res; }).catch(() => null);
+    // no-cache = comprueba con la red si hay versión nueva (si no la hay, es una respuesta rápida y sin descarga)
+    const red = fetch(new Request(r.url, { cache: 'no-cache', credentials: 'same-origin' }))
+      .then(res => { if (res && res.ok) c.put(r, res.clone()); return res; }).catch(() => null);
     if (guardado) { try { e.waitUntil(red); } catch (_) {} return guardado; }
     const res = await red;
     if (res) return res;
