@@ -130,6 +130,17 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 28px; }
 .reco p { color: var(--mute); font-size: 14.5px; margin: 6px 0 12px; }
 .reco .nota { margin: 10px 0 0; }
 .reco .btn { width: 100%; }
+.reco details { margin-top: 10px; }
+.reco summary { cursor: pointer; color: var(--accent); font-size: 14.5px; padding: 8px 0; list-style: none; }
+.reco summary::-webkit-details-marker { display: none; }
+.reco summary::after { content: ' ▾'; }
+.reco details[open] summary::after { content: ' ▴'; }
+.piezas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.piezas li { display: grid; grid-template-columns: 1fr 44px; gap: 8px; align-items: center; padding: 6px 6px 6px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.piezas b { display: block; font-weight: 560; font-size: 15px; }
+.piezas small { color: var(--mute); font-size: 12.5px; }
+.pieza-mas { height: 40px; border-radius: 12px; font-size: 22px; line-height: 1; color: var(--accent); border: 1.5px solid rgba(127, 212, 196, .45); }
+.pieza-mas:disabled { opacity: .4; }
 .vacio { color: var(--mute); font-size: 14.5px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 16px; }
 
 /* ---------- barra inferior ---------- */

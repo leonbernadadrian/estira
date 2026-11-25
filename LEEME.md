@@ -32,7 +32,9 @@ Añade `?rapido` a la dirección de `estira.html` y todo va 10 veces más depris
 - `img/`: dibujos de las posturas.
 
 ## Música incluida y créditos
-La app trae 7 piezas de música relajante (unos 55 minutos) que se descargan al dispositivo con el botón
-«Añadir música recomendada» (Estiramientos → Mi música). Son de **Kevin MacLeod (incompetech.com)**, licencia
-**Creative Commons: By Attribution 4.0** (http://creativecommons.org/licenses/by/4.0/). Se ajustaron el volumen y el peso (mp3 a 96 kbps).
+La app trae dos packs de música relajante que se descargan al dispositivo con su botón «Añadir este pack»
+(Estiramientos → Mi música): «Piano y meditación» (7 piezas cortas, unos 55 minutos, 96 kbps) y «Zen largo»
+(8 piezas largas de flauta, arpa, lluvia y fondos suaves, 80 kbps). Los packs se definen en `PACKS_MUSICA` y
+`MUSICA_INCLUIDA` (campo `grupo`) de `data.js`. Son de **Kevin MacLeod (incompetech.com)**, licencia
+**Creative Commons: By Attribution 4.0** (http://creativecommons.org/licenses/by/4.0/). Se ajustaron el volumen y el peso.
 Están en `musica/` y los créditos en `musica/CREDITOS.txt`. Las canciones que añadas tú no se suben a ningún sitio.

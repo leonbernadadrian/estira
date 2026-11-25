@@ -182,44 +182,64 @@ async function pintarMusica() {
     </div>`).join('');
 }
 // Música relajante con licencia libre que viene con la app: se descarga una vez y se guarda en el dispositivo.
+const packsAbiertos = new Set();
+const durac = seg => seg >= 3600 ? `${Math.floor(seg / 3600)} h ${Math.round(seg % 3600 / 60)} min` : `${Math.round(seg / 60)} min`;
 function pintarRecomendada(lista) {
   const hechas = new Set(lista.map(m => m.origen).filter(Boolean));
-  const faltan = MUSICA_INCLUIDA.filter(m => !hechas.has(m.archivo));
   const caja = $('#musica-reco');
   const credito = `<p class="nota">${CREDITO_MUSICA}</p>`;
-  if (!faltan.length) { caja.innerHTML = lista.some(m => m.origen) ? credito : ''; return; }
-  const minutos = Math.round(faltan.reduce((n, m) => n + m.seg, 0) / 60), tam = faltan.reduce((n, m) => n + m.bytes, 0);
-  caja.innerHTML = `<div class="reco">
-      <b>Música relajante, gratis</b>
-      <p>${faltan.length} ${faltan.length === 1 ? 'pieza tranquila' : 'piezas tranquilas'} (${minutos} min) con licencia libre. Hace falta internet una sola vez (${mb(tam)}); después suenan sin conexión.</p>
-      <button class="btn primary" id="reco-todas" type="button">Añadir música recomendada</button>
-      <p class="nota" id="reco-estado" aria-live="polite"></p>${credito}
+  const tarjetas = Object.keys(PACKS_MUSICA).map(id => {
+    const faltan = MUSICA_INCLUIDA.filter(m => (m.grupo || 'suave') === id && !hechas.has(m.archivo));
+    if (!faltan.length) return '';
+    const pack = PACKS_MUSICA[id];
+    const tam = faltan.reduce((n, m) => n + m.bytes, 0), seg = faltan.reduce((n, m) => n + m.seg, 0);
+    const piezas = faltan.map(m => `<li><span><b>${m.titulo}</b><small>${durac(m.seg)} · ${mb(m.bytes)}</small></span>
+        <button class="pieza-mas" data-pieza="${m.archivo}" type="button" aria-label="Añadir ${m.titulo}">+</button></li>`).join('');
+    return `<div class="reco">
+      <b>${pack.nombre}</b>
+      <p>${pack.texto} ${faltan.length} ${faltan.length === 1 ? 'pieza' : 'piezas'}, ${durac(seg)}. Hace falta internet una sola vez; después suenan sin conexión.</p>
+      <button class="btn primary" data-pack="${id}" type="button">Añadir todo el pack · ${mb(tam)}</button>
+      <details data-det="${id}"${packsAbiertos.has(id) ? ' open' : ''}><summary>O elige solo algunas piezas</summary><ul class="piezas">${piezas}</ul></details>
+      <p class="nota" data-estado="${id}" aria-live="polite"></p>
     </div>`;
+  }).join('');
+  caja.innerHTML = tarjetas + (tarjetas || lista.some(m => m.origen) ? credito : '');
 }
-async function anadirRecomendada() {
-  const estado = $('#reco-estado'), boton = $('#reco-todas');
-  if (!boton || boton.disabled) return;
-  boton.disabled = true;
+let descargando = false;
+async function bajarPiezas(pack, filtro) {
+  if (descargando) return;
+  descargando = true;
+  const estado = () => $(`#musica-reco [data-estado="${pack}"]`);
+  document.querySelectorAll('#musica-reco button').forEach(b => { b.disabled = true; });
   const hechas = new Set((await Musica.lista()).map(m => m.origen).filter(Boolean));
-  const faltan = MUSICA_INCLUIDA.filter(m => !hechas.has(m.archivo));
+  const faltan = MUSICA_INCLUIDA.filter(m => (m.grupo || 'suave') === pack && !hechas.has(m.archivo) && filtro(m));
   let n = 0;
   for (const m of faltan) {
-    estado.textContent = `Descargando ${n + 1} de ${faltan.length}: ${m.titulo}…`;
+    if (estado()) estado().textContent = `Descargando ${n + 1} de ${faltan.length}: ${m.titulo} (${mb(m.bytes)})…`;
     try {
       const r = await fetch(m.archivo);
       if (!r.ok) throw new Error('http ' + r.status);
       await Musica.anadirBlob(await r.blob(), m.titulo, m.archivo);
       n++;
     } catch (e) {
-      await pintarMusica();
-      const est = $('#reco-estado'); if (est) est.textContent = `No se pudo descargar «${m.titulo}». Revisa la conexión y vuelve a probar.`;
+      descargando = false; await pintarMusica();
+      if (estado()) estado().textContent = `No se pudo descargar «${m.titulo}». Revisa la conexión y vuelve a probar.`;
       return;
     }
   }
+  descargando = false;
   await pintarMusica();
   $('#musica-estado').textContent = `Añadidas ${n} ${n === 1 ? 'pieza' : 'piezas'} de música relajante.`;
 }
-$('#musica-reco').addEventListener('click', e => { if (e.target.closest('#reco-todas')) anadirRecomendada(); });
+$('#musica-reco').addEventListener('click', e => {
+  const p = e.target.closest('[data-pieza]'), b = e.target.closest('[data-pack]');
+  if (p) bajarPiezas(p.closest('[data-det]').dataset.det, m => m.archivo === p.dataset.pieza);
+  else if (b) bajarPiezas(b.dataset.pack, () => true);
+});
+$('#musica-reco').addEventListener('toggle', e => {
+  const d = e.target.closest && e.target.closest('[data-det]');
+  if (d) d.open ? packsAbiertos.add(d.dataset.det) : packsAbiertos.delete(d.dataset.det);
+}, true);
 $('#musica-anadir').addEventListener('click', () => $('#musica-archivo').click());
 $('#musica-archivo').addEventListener('change', async e => {
   const archivos = [...e.target.files]; e.target.value = '';

@@ -161,14 +161,26 @@ POSTURAS.push(...POSTURAS_NUEVAS.filter(p => NUEVAS_ACTIVAS.includes(p.id)));
 
 /* ---------- MÚSICA INCLUIDA (licencia libre) ----------
    Piezas de Kevin MacLeod, Creative Commons Reconocimiento 4.0. La app las descarga al dispositivo cuando se pulsa
-   "Añadir música recomendada" y desde entonces suenan sin conexión, igual que las canciones que añades tú. */
+   "Añadir este pack" y desde entonces suenan sin conexión, igual que las canciones que añades tú. */
+const PACKS_MUSICA = {
+  suave: { nombre: 'Piano y meditación', texto: 'Piezas cortas y tranquilas, para empezar.' },
+  zen:   { nombre: 'Zen largo', texto: 'Piezas largas de flauta, arpa, lluvia y fondos suaves, como los vídeos de música para relajarse.' }
+};
 const MUSICA_INCLUIDA = [
-  { archivo: 'musica/meditation-impromptu-01.mp3', titulo: 'Meditation Impromptu 01', seg: 213, bytes: 2554192 },
-  { archivo: 'musica/meditation-impromptu-02.mp3', titulo: 'Meditation Impromptu 02', seg: 249, bytes: 2989601 },
-  { archivo: 'musica/meditation-impromptu-03.mp3', titulo: 'Meditation Impromptu 03', seg: 255, bytes: 3063266 },
-  { archivo: 'musica/healing.mp3', titulo: 'Healing', seg: 520, bytes: 6241533 },
-  { archivo: 'musica/ethereal-relaxation.mp3', titulo: 'Ethereal Relaxation', seg: 1686, bytes: 20233552 },
-  { archivo: 'musica/floating-cities.mp3', titulo: 'Floating Cities', seg: 184, bytes: 2209376 },
-  { archivo: 'musica/bathed-in-the-light.mp3', titulo: 'Bathed in the Light', seg: 166, bytes: 1993395 }
+  { archivo: 'musica/meditation-impromptu-01.mp3', titulo: 'Meditation Impromptu 01', seg: 213, bytes: 2554192, grupo: 'suave' },
+  { archivo: 'musica/meditation-impromptu-02.mp3', titulo: 'Meditation Impromptu 02', seg: 249, bytes: 2989601, grupo: 'suave' },
+  { archivo: 'musica/meditation-impromptu-03.mp3', titulo: 'Meditation Impromptu 03', seg: 255, bytes: 3063266, grupo: 'suave' },
+  { archivo: 'musica/healing.mp3', titulo: 'Healing', seg: 520, bytes: 6241533, grupo: 'suave' },
+  { archivo: 'musica/ethereal-relaxation.mp3', titulo: 'Ethereal Relaxation', seg: 1686, bytes: 20233552, grupo: 'suave' },
+  { archivo: 'musica/floating-cities.mp3', titulo: 'Floating Cities', seg: 184, bytes: 2209376, grupo: 'suave' },
+  { archivo: 'musica/bathed-in-the-light.mp3', titulo: 'Bathed in the Light', seg: 166, bytes: 1993395, grupo: 'suave' },
+  { archivo: 'musica/river-flute.mp3', titulo: 'River Flute', seg: 1228, bytes: 12281252, grupo: 'zen' },
+  { archivo: 'musica/peace-of-mind.mp3', titulo: 'Peace of Mind', seg: 2158, bytes: 21579015, grupo: 'zen' },
+  { archivo: 'musica/white-lotus.mp3', titulo: 'White Lotus', seg: 2072, bytes: 20716975, grupo: 'zen' },
+  { archivo: 'musica/fluidscape.mp3', titulo: 'Fluidscape', seg: 1821, bytes: 18211832, grupo: 'zen' },
+  { archivo: 'musica/dewdrop-fantasy.mp3', titulo: 'Dewdrop Fantasy', seg: 2098, bytes: 20979505, grupo: 'zen' },
+  { archivo: 'musica/kalimba-relaxation-music.mp3', titulo: 'Kalimba Relaxation Music', seg: 428, bytes: 4281252, grupo: 'zen' },
+  { archivo: 'musica/eastminster.mp3', titulo: 'Eastminster', seg: 405, bytes: 4051113, grupo: 'zen' },
+  { archivo: 'musica/relaxing-piano-music.mp3', titulo: 'Relaxing Piano Music', seg: 1494, bytes: 14941301, grupo: 'zen' }
 ];
 const CREDITO_MUSICA = 'Música de Kevin MacLeod (incompetech.com), licencia Creative Commons Reconocimiento 4.0 (creativecommons.org/licenses/by/4.0).';
