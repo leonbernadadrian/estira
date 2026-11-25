@@ -89,6 +89,7 @@ function renderDay() {
       const ultimo = h.find(x => x !== hoyE);
       const total = Math.max(plan.series[id], hechas.length);
       const registradoHoy = h.some(x => x.fecha === isoHoy() && !cerrada(x));
+      const sug = !hechas.length && !registradoHoy ? sugerencia(id, dose, ultimo) : null;
       const quedan = Array.from({ length: total - hechas.length }, (_, j) => hechas.length + j);
       return `<li>
       <div class="name">${name}</div>
@@ -96,7 +97,8 @@ function renderDay() {
       <div class="dose">${total === numSeries(dose) ? dose : `${total} ×${dose.split("×")[1]}<s>${numSeries(dose)}</s>`}<small>series × reps</small></div>
       <div class="alt">${alt}</div>
       <div class="why">${why}</div>
-      ${GRANDES.has(id) && !hechas.length ? calentamiento(id, id === primeraGrande, ultimo) : ""}
+      ${sug ? bloqueSugerencia(sug) : ""}
+      ${GRANDES.has(id) && !hechas.length ? calentamiento(id, id === primeraGrande, ultimo, sug?.sube ? sug.kg : null) : ""}
       <form class="log" data-id="${id}">
         ${modo === "texto" ? `<div class="log-actions">
           <input class="texto" aria-label="Lo que has hecho hoy" placeholder="${ultimo ? "Última vez: " + esc(ultimo.texto) : "Ej. 22,5 kg × 10, 9, 8"}" maxlength="80">
@@ -149,6 +151,10 @@ function renderDay() {
   main.querySelectorAll('input[data-f="reps"]').forEach(r => r.addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); r.closest("form").querySelector(`[data-save="${r.dataset.k}"]`)?.click(); }
   }));
+  main.querySelectorAll("[data-usar]").forEach(b => b.addEventListener("click", () => {
+    b.closest("li").querySelectorAll('input[data-f="kg"]').forEach(i => { i.value = b.dataset.kg; });
+    b.textContent = "✓ Puesto"; b.disabled = true;
+  }));
   main.querySelectorAll("[data-undo]").forEach(b => b.addEventListener("click", () => deshacerSerie(b.dataset.undo)));
   main.querySelectorAll("[data-mas]").forEach(b => b.addEventListener("click", () => cambiarSeries(d, b.dataset.mas, 1)));
   main.querySelectorAll("[data-serie-mas]").forEach(b => b.addEventListener("click", () => cambiarSeries(d, b.dataset.serieMas, 1)));
@@ -196,8 +202,12 @@ function renderHist() {
   }
   const porFecha = {};
   historial.forEach(h => (porFecha[h.fecha] ||= []).push(h));
-  const fechas = Object.keys(porFecha).sort().reverse();
-  main.innerHTML = `<div class="day-title"><h2>Historial</h2><p>${historial.length} anotaciones en ${fechas.length} ${fechas.length === 1 ? "sesión" : "sesiones"}</p></div>` +
+  sesiones.forEach(x => { porFecha[x.fecha] ||= []; });
+  const todas = Object.keys(porFecha).sort().reverse();
+  if (calDia && !porFecha[calDia]) calDia = null;
+  const fechas = calDia ? [calDia] : todas;
+  main.innerHTML = `<div class="day-title"><h2>Historial</h2><p>${historial.length} anotaciones en ${todas.length} ${todas.length === 1 ? "sesión" : "sesiones"}</p></div>` + calendario() +
+    (calDia ? `<p class="cal-filtro">Mostrando solo ${esc(fmtFecha(calDia, true))} · <button type="button" class="hist-toggle" data-cal-todo>Ver todo el historial</button></p>` : "") +
     fechas.map(f => {
       const items = porFecha[f].sort((a, b) => a.ts - b.ts);
       const sesTit = sesiones.filter(x => x.fecha === f).map(x => x.dia ? `Día ${x.dia} · ${x.titulo}` : x.titulo);
@@ -205,8 +215,59 @@ function renderHist() {
       const ses = sesiones.filter(x => x.fecha === f);
       return `<section class="sesion"><h3>${fmtFecha(f, true)}<small>${esc(dias)}</small></h3>${ses.map(x => `<p class="ses-linea">✓ ${esc(x.titulo)}${x.corto ? ` (corto de ${x.corto} min)` : ""} · ${x.minutos} min · ${x.series} series · ${fmtN(x.volumen, 0)} kg movidos${x.records?.length ? ` · ${x.records.length} ${x.records.length === 1 ? "récord" : "récords"}` : ""}</p>${bloqueValoracion(x, true)}`).join("")}<ul class="hist">${items.map(h => filaHist(h, true)).join("")}</ul></section>`;
     }).join("");
+  bindCalendario(main);
   bindBorrar(main);
   bindValorar(main);
+}
+
+// ---- Calendario de lo entrenado: solo el pasado, sin planes a futuro (con turnos rotativos no hay días fijos) ----
+let calMes = isoHoy().slice(0, 7), calDia = null;   // calMes = "AAAA-MM"; calDia = fecha elegida para ver solo ese día
+function actividad() {
+  const m = new Map();
+  const dia = (f) => { let e = m.get(f); if (!e) m.set(f, e = { cuenta: {}, ses: 0, cerrada: false }); return e; };
+  historial.forEach(h => { const e = dia(h.fecha), n = NOMBRE[h.ej]?.dia; if (n) e.cuenta[n] = (e.cuenta[n] || 0) + 1; });
+  sesiones.forEach(x => { const e = dia(x.fecha); e.cerrada = true; if (x.dia >= 1 && x.dia <= 4) e.ses = x.dia; });
+  m.forEach(e => { e.n = e.ses || Number(Object.entries(e.cuenta).sort((a, b) => b[1] - a[1])[0]?.[0]) || 0; });
+  return m;
+}
+const sumaMes = (ym, d) => { const [y, m] = ym.split("-").map(Number), x = new Date(y, m - 1 + d, 1); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`; };
+const nombreMes = (ym, conAnio) => { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("es-ES", conAnio ? { month: "long", year: "numeric" } : { month: "long" }); };
+function haceDias(iso) {
+  const n = Math.round((new Date(isoHoy() + "T12:00:00") - new Date(iso + "T12:00:00")) / 864e5);
+  return n <= 0 ? "hoy" : n === 1 ? "ayer" : `hace ${n} días`;
+}
+function calendario() {
+  const act = actividad(), hoy = isoHoy(), fechas = [...act.keys()].sort();
+  if (!fechas.length) return "";
+  const primerMes = fechas[0].slice(0, 7), mesActual = hoy.slice(0, 7);
+  if (calMes > mesActual) calMes = mesActual;
+  if (calMes < primerMes) calMes = primerMes;
+  const [y, m] = calMes.split("-").map(Number);
+  const hueco = (new Date(y, m - 1, 1).getDay() + 6) % 7, nDias = new Date(y, m, 0).getDate();   // la semana empieza en lunes
+  let celdas = "<span></span>".repeat(hueco);
+  for (let d = 1; d <= nDias; d++) {
+    const f = `${calMes}-${String(d).padStart(2, "0")}`, e = act.get(f), esHoy = f === hoy;
+    if (e) {
+      const tit = e.n ? `Día ${e.n} · ${DAYS[e.n - 1].title}` : "Entrenamiento";
+      celdas += `<button type="button" class="cal-d${e.cerrada ? "" : " parcial"}${esHoy ? " hoy" : ""}" style="--c:${e.n ? `var(--d${e.n})` : "var(--accent)"}" data-cal-fecha="${f}" aria-pressed="${f === calDia}" aria-label="${esc(`${fmtFecha(f, true)}: ${tit}${e.cerrada ? ", entrenamiento terminado" : ", anotado sin terminar"}`)}">${d}</button>`;
+    } else celdas += `<span class="cal-v${esHoy ? " hoy" : ""}${f > hoy ? " fut" : ""}">${d}</span>`;
+  }
+  const delMes = fechas.filter(f => f.startsWith(calMes)).length, mes = nombreMes(calMes, true);
+  return `<section class="cal" aria-label="Calendario de entrenamientos">
+    <div class="cal-cab">
+      <button type="button" data-cal-mes="-1" aria-label="Mes anterior"${calMes <= primerMes ? " disabled" : ""}>‹</button>
+      <h3>${mes[0].toUpperCase() + mes.slice(1)}</h3>
+      <button type="button" data-cal-mes="1" aria-label="Mes siguiente"${calMes >= mesActual ? " disabled" : ""}>›</button>
+    </div>
+    <div class="cal-rej">${["L", "M", "X", "J", "V", "S", "D"].map(s => `<span class="cal-sem">${s}</span>`).join("")}${celdas}</div>
+    <p class="cal-resumen"><b>${delMes} ${delMes === 1 ? "día entrenado" : "días entrenados"}</b> en ${nombreMes(calMes)} · último entrenamiento ${haceDias(fechas[fechas.length - 1])} · ${fechas.length} en total desde el ${fmtFecha(fechas[0])}</p>
+    <div class="cal-ley">${DAYS.map(d => `<span style="--c:${d.c}"><i></i>Día ${d.n}</span>`).join("")}<small>Relleno: terminado · claro: anotado sin terminar</small></div>
+  </section>`;
+}
+function bindCalendario(root) {
+  root.querySelectorAll("[data-cal-mes]").forEach(b => b.addEventListener("click", () => { calMes = sumaMes(calMes, Number(b.dataset.calMes)); renderHist(); }));
+  root.querySelectorAll("[data-cal-fecha]").forEach(b => b.addEventListener("click", () => { calDia = calDia === b.dataset.calFecha ? null : b.dataset.calFecha; renderHist(); }));
+  root.querySelector("[data-cal-todo]")?.addEventListener("click", () => { calDia = null; renderHist(); });
 }
 
 function bindBorrar(root) {
@@ -229,10 +290,30 @@ const GRANDES = new Set(["press-inclinado", "press-banca", "dominadas", "remo-ap
 // El primer ejercicio grande del día lleva 3 (2 en el entreno de 20 min); los siguientes, 2, porque el cuerpo ya está caliente.
 const PASO_KG = { "press-inclinado": 2, "press-militar": 2, "dominadas": 5, "remo-polea": 5, "prensa": 5 }; // el resto, de 2,5 en 2,5
 const APROX_PRIMERO = [[0.5, "10"], [0.7, "5"], [0.85, "2–3"]], APROX_CORTO = [[0.5, "8"], [0.75, "3"]], APROX_SIGUIENTE = [[0.6, "6"], [0.8, "3"]];
-function calentamiento(id, primero, ultimo) {
+// ---- Sugerencia para hoy (doble progresión) ----
+// Si la última vez llegaste al tope de repeticiones en todas las series con el peso más alto, hoy toca subir un escalón;
+// si no, mismo peso e intentar una repetición más en cada serie.
+function sugerencia(id, dose, ultimo) {
+  const rango = /×\s*(\d+)\s*[–-]\s*(\d+)/.exec(dose);
+  const series = (ultimo?.series || []).filter(x => Number(x.reps) > 0);
+  if (!rango || series.length < 2) return null;
+  const tope = Number(rango[2]);
+  if (SIN_PESO.has(id)) return { sinKg: true, sube: series.every(x => Number(x.reps) >= tope), tope, ultima: resumen(series) };
+  const kgs = series.map(x => num(x.kg)).filter(k => k != null);
+  if (!kgs.length) return null;
+  const peso = Math.max(...kgs), duras = series.filter(x => num(x.kg) === peso);
+  const sube = duras.length >= 2 && duras.every(x => Number(x.reps) >= tope);
+  return { sube, kg: sube ? peso + (PASO_KG[id] || 2.5) : peso, peso, tope, ultima: resumen(duras) };
+}
+function bloqueSugerencia(s) {
+  if (s.sinKg) return `<div class="sugiere"><p><b>${s.sube ? "Hoy: hazlas más lentas" : "Hoy: una repetición más en cada serie"}</b> <span>· ${s.sube ? `la última vez llegaste a ${s.tope} en todas (${esc(s.ultima)}): baja en 3 segundos y aguanta 1 segundo arriba.` : `la última vez ${esc(s.ultima)}. Cuando llegues a ${s.tope} en todas, hazlas más lentas.`}</span></p></div>`;
+  if (s.sube) return `<div class="sugiere"><p><b>Hoy prueba ${fmtN(s.kg)} kg</b> <span>· la última vez llegaste a ${s.tope} en todas (${esc(s.ultima)}).</span></p>${modo === "series" ? `<button type="button" data-usar data-kg="${fmtN(s.kg)}">Usar ${fmtN(s.kg)} kg</button>` : ""}</div>`;
+  return `<div class="sugiere"><p><b>Hoy: ${fmtN(s.peso)} kg otra vez</b> <span>· intenta una repetición más en cada serie (la última vez ${esc(s.ultima)}). Con ${s.tope} en todas, subes.</span></p></div>`;
+}
+function calentamiento(id, primero, ultimo, objetivo) {
   const esquema = primero ? (tiempo === 20 ? APROX_CORTO : APROX_PRIMERO) : APROX_SIGUIENTE;
   const kgs = (ultimo?.series || []).map(x => num(x.kg)).filter(Boolean);
-  const trabajo = kgs.length ? Math.max(...kgs) : null;
+  const trabajo = objetivo || (kgs.length ? Math.max(...kgs) : null);
   let series;
   if (trabajo) {
     const paso = PASO_KG[id] || 2.5;
@@ -242,7 +323,7 @@ function calentamiento(id, primero, ultimo) {
       .map(([kg, reps]) => `${fmtN(kg)} kg × ${reps}`);
   } else series = esquema.map(([pct, reps]) => `${Math.round(pct * 100)} % × ${reps}`);
   if (!series.length) return "";
-  return `<div class="calent"><b>Calentamiento:</b> ${series.join(" · ")}${trabajo ? "" : " del peso que vayas a usar"} <span>· sin llegar al fallo y 1 min entre ellas; no se apuntan${trabajo ? ` (sobre tus ${fmtN(trabajo)} kg de la última vez)` : ""}</span></div>`;
+  return `<div class="calent"><b>Calentamiento:</b> ${series.join(" · ")}${trabajo ? "" : " del peso que vayas a usar"} <span>· sin llegar al fallo y 1 min entre ellas; no se apuntan${trabajo ? ` (sobre ${objetivo ? `los ${fmtN(trabajo)} kg de hoy` : `tus ${fmtN(trabajo)} kg de la última vez`})` : ""}</span></div>`;
 }
 
 // ---- Entrenamiento corto: ajusta ejercicios, series y descansos al tiempo que tengas ----

@@ -8,6 +8,11 @@ funciona sin internet. Al abrirla aparecen dos opciones:
   Cada ejercicio tiene «Solo hoy: − serie / + serie / Quitar ejercicio», y debajo de la lista se puede añadir un
   ejercicio de otro día. Esos cambios se guardan con la fecha de hoy (`rutina-hoy` en el almacenamiento local) y
   no tocan la rutina: al día siguiente sale como siempre.
+  Cada ejercicio muestra una **sugerencia para hoy** (doble progresión): si la última vez llegaste al tope de repeticiones
+  en todas las series con el peso más alto, propone subir un escalón (2,5 kg; 2 kg en mancuernas de press; 5 kg en
+  dominadas, remo en polea y prensa) con un botón «Usar»; si no, mismo peso y una repetición más.
+  El **Historial** lleva un calendario con los días entrenados (relleno = entrenamiento terminado, claro = anotado sin
+  terminar, color según el día de la rutina). Solo mira al pasado: no hay planes a futuro. Tocar un día muestra solo ese día.
 - **Estiramientos** (`estira.html`): sesiones guiadas por zonas del cuerpo con tiempos y dibujos. La mayoría de posturas son
   sobre esterilla (a cuatro apoyos, tumbado, sentado en el suelo) y de yoga, de 30 a 50 segundos cada una según la duración.
   Nunca repite una postura dentro de una sesión. La música es la tuya: se añade desde la propia app y se guarda solo en el

@@ -4,7 +4,7 @@
    Si cambias archivos de la app, sube el número de CACHE para que se vuelvan a guardar todos. */
 importScripts('data.js');                       // para saber qué dibujos hay que guardar
 
-const CACHE = 'cuerpo-v9';
+const CACHE = 'cuerpo-v10';
 const BASE = ['./', 'index.html', 'estira.html', 'gimnasio.html', 'gimnasio.css', 'gimnasio.js', 'registro-sw.js',
               'styles.css', 'data.js', 'audio.js', 'app.js', 'manifest.webmanifest',
               'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
