@@ -58,6 +58,16 @@ const Musica = (() => {
       }
       return n;
     },
+    // Guarda una canción ya descargada (la música recomendada). "origen" es su archivo en la web, para saber que ya está.
+    async anadirBlob(blob, nombre, origen) {
+      const db = await abrir();
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+      await new Promise((ok, mal) => {
+        const t = db.transaction(ALMACEN, 'readwrite');
+        t.objectStore(ALMACEN).add({ nombre, tam: blob.size, tipo: blob.type, fecha: Date.now(), origen, blob });
+        t.oncomplete = ok; t.onerror = () => mal(t.error); t.onabort = () => mal(t.error);
+      });
+    },
     async borrar(id) {
       const db = await abrir();
       await new Promise((ok, mal) => { const t = db.transaction(ALMACEN, 'readwrite'); t.objectStore(ALMACEN).delete(id); t.oncomplete = ok; t.onerror = () => mal(t.error); });

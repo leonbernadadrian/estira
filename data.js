@@ -158,3 +158,17 @@ const NUEVAS_ACTIVAS = [
   'pierna-cabeza-rodilla', 'pierna-media-pinza', 'pierna-perro', 'pierna-cuadriceps-lado', 'pierna-estiron-tumbado'
 ];
 POSTURAS.push(...POSTURAS_NUEVAS.filter(p => NUEVAS_ACTIVAS.includes(p.id)));
+
+/* ---------- MÚSICA INCLUIDA (licencia libre) ----------
+   Piezas de Kevin MacLeod, Creative Commons Reconocimiento 4.0. La app las descarga al dispositivo cuando se pulsa
+   "Añadir música recomendada" y desde entonces suenan sin conexión, igual que las canciones que añades tú. */
+const MUSICA_INCLUIDA = [
+  { archivo: 'musica/meditation-impromptu-01.mp3', titulo: 'Meditation Impromptu 01', seg: 213, bytes: 2554192 },
+  { archivo: 'musica/meditation-impromptu-02.mp3', titulo: 'Meditation Impromptu 02', seg: 249, bytes: 2989601 },
+  { archivo: 'musica/meditation-impromptu-03.mp3', titulo: 'Meditation Impromptu 03', seg: 255, bytes: 3063266 },
+  { archivo: 'musica/healing.mp3', titulo: 'Healing', seg: 520, bytes: 6241533 },
+  { archivo: 'musica/ethereal-relaxation.mp3', titulo: 'Ethereal Relaxation', seg: 1686, bytes: 20233552 },
+  { archivo: 'musica/floating-cities.mp3', titulo: 'Floating Cities', seg: 184, bytes: 2209376 },
+  { archivo: 'musica/bathed-in-the-light.mp3', titulo: 'Bathed in the Light', seg: 166, bytes: 1993395 }
+];
+const CREDITO_MUSICA = 'Música de Kevin MacLeod (incompetech.com), licencia Creative Commons Reconocimiento 4.0 (creativecommons.org/licenses/by/4.0).';

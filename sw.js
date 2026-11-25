@@ -4,7 +4,7 @@
    Si cambias archivos de la app, sube el número de CACHE para que se vuelvan a guardar todos. */
 importScripts('data.js');                       // para saber qué dibujos hay que guardar
 
-const CACHE = 'cuerpo-v5';
+const CACHE = 'cuerpo-v6';
 const BASE = ['./', 'index.html', 'estira.html', 'gimnasio.html', 'gimnasio.css', 'gimnasio.js', 'registro-sw.js',
               'styles.css', 'data.js', 'audio.js', 'app.js', 'manifest.webmanifest',
               'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
@@ -31,6 +31,7 @@ self.addEventListener('fetch', e => {
   const r = e.request;
   if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return;
   if (new URL(r.url).pathname.endsWith('/datos.enc')) return;      // el historial cifrado siempre va a la red: nunca una copia vieja
+  if (new URL(r.url).pathname.includes('/musica/')) return;        // la música pesa mucho: se guarda en la app (IndexedDB), no aquí
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     const guardado = await c.match(r, { ignoreSearch: true });

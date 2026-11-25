@@ -125,6 +125,11 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 28px; }
 .pista-play, .pista-x { height: 40px; border-radius: 12px; color: var(--mute); font-size: 15px; }
 .pista-play { color: var(--accent); }
 .pista-x.seguro { grid-column: span 1; color: #ffb4a8; font-size: 12px; }
+.reco { padding: 16px; border-radius: 20px; border: 1.5px solid rgba(127, 212, 196, .4); background: rgba(127, 212, 196, .08); margin-bottom: 12px; }
+.reco b { font-size: 17px; }
+.reco p { color: var(--mute); font-size: 14.5px; margin: 6px 0 12px; }
+.reco .nota { margin: 10px 0 0; }
+.reco .btn { width: 100%; }
 .vacio { color: var(--mute); font-size: 14.5px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 16px; }
 
 /* ---------- barra inferior ---------- */

@@ -30,3 +30,9 @@ Añade `?rapido` a la dirección de `estira.html` y todo va 10 veces más depris
 - `sw.js`, `registro-sw.js`, `manifest.webmanifest`, `icons/`: instalación y modo sin conexión.
   Si cambias archivos de la app, sube el número de `CACHE` en `sw.js` para que se vuelvan a guardar.
 - `img/`: dibujos de las posturas.
+
+## Música incluida y créditos
+La app trae 7 piezas de música relajante (unos 55 minutos) que se descargan al dispositivo con el botón
+«Añadir música recomendada» (Estiramientos → Mi música). Son de **Kevin MacLeod (incompetech.com)**, licencia
+**Creative Commons: By Attribution 4.0** (http://creativecommons.org/licenses/by/4.0/). Se ajustaron el volumen y el peso (mp3 a 96 kbps).
+Están en `musica/` y los créditos en `musica/CREDITOS.txt`. Las canciones que añadas tú no se suben a ningún sitio.

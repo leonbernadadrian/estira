@@ -169,8 +169,9 @@ async function pintarMusica() {
   if (!Musica.soportado()) { caja.innerHTML = '<p class="nota">Este navegador no permite guardar música en el dispositivo.</p>'; return; }
   let lista = [];
   try { lista = await Musica.lista(); } catch (e) { caja.innerHTML = '<p class="nota">No se pudo abrir tu música. Prueba a cerrar y abrir la app.</p>'; return; }
+  pintarRecomendada(lista);
   if (!lista.length) {
-    caja.innerHTML = '<p class="vacio">Aún no tienes música. Descarga canciones relajantes y pulsa «Añadir canciones»: se guardan solo en este dispositivo y suenan durante la sesión.</p>';
+    caja.innerHTML = '<p class="vacio">Aún no tienes música. Añade la recomendada de aquí abajo, o tus propias canciones con «Añadir mis canciones». Se guardan solo en este dispositivo.</p>';
     return;
   }
   caja.innerHTML = lista.map(m => `<div class="pista" data-id="${m.id}">
@@ -180,6 +181,45 @@ async function pintarMusica() {
       <button class="pista-x" aria-label="Quitar «${esc(m.nombre)}»">✕</button>
     </div>`).join('');
 }
+// Música relajante con licencia libre que viene con la app: se descarga una vez y se guarda en el dispositivo.
+function pintarRecomendada(lista) {
+  const hechas = new Set(lista.map(m => m.origen).filter(Boolean));
+  const faltan = MUSICA_INCLUIDA.filter(m => !hechas.has(m.archivo));
+  const caja = $('#musica-reco');
+  const credito = `<p class="nota">${CREDITO_MUSICA}</p>`;
+  if (!faltan.length) { caja.innerHTML = lista.some(m => m.origen) ? credito : ''; return; }
+  const minutos = Math.round(faltan.reduce((n, m) => n + m.seg, 0) / 60), tam = faltan.reduce((n, m) => n + m.bytes, 0);
+  caja.innerHTML = `<div class="reco">
+      <b>Música relajante, gratis</b>
+      <p>${faltan.length} ${faltan.length === 1 ? 'pieza tranquila' : 'piezas tranquilas'} (${minutos} min) con licencia libre. Hace falta internet una sola vez (${mb(tam)}); después suenan sin conexión.</p>
+      <button class="btn primary" id="reco-todas" type="button">Añadir música recomendada</button>
+      <p class="nota" id="reco-estado" aria-live="polite"></p>${credito}
+    </div>`;
+}
+async function anadirRecomendada() {
+  const estado = $('#reco-estado'), boton = $('#reco-todas');
+  if (!boton || boton.disabled) return;
+  boton.disabled = true;
+  const hechas = new Set((await Musica.lista()).map(m => m.origen).filter(Boolean));
+  const faltan = MUSICA_INCLUIDA.filter(m => !hechas.has(m.archivo));
+  let n = 0;
+  for (const m of faltan) {
+    estado.textContent = `Descargando ${n + 1} de ${faltan.length}: ${m.titulo}…`;
+    try {
+      const r = await fetch(m.archivo);
+      if (!r.ok) throw new Error('http ' + r.status);
+      await Musica.anadirBlob(await r.blob(), m.titulo, m.archivo);
+      n++;
+    } catch (e) {
+      await pintarMusica();
+      const est = $('#reco-estado'); if (est) est.textContent = `No se pudo descargar «${m.titulo}». Revisa la conexión y vuelve a probar.`;
+      return;
+    }
+  }
+  await pintarMusica();
+  $('#musica-estado').textContent = `Añadidas ${n} ${n === 1 ? 'pieza' : 'piezas'} de música relajante.`;
+}
+$('#musica-reco').addEventListener('click', e => { if (e.target.closest('#reco-todas')) anadirRecomendada(); });
 $('#musica-anadir').addEventListener('click', () => $('#musica-archivo').click());
 $('#musica-archivo').addEventListener('change', async e => {
   const archivos = [...e.target.files]; e.target.value = '';
