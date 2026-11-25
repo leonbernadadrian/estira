@@ -10,8 +10,11 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!habiaControlador) return;
       let ya = false;
-      try { ya = !!sessionStorage.getItem('sw-recargado'); sessionStorage.setItem('sw-recargado', '1'); } catch (e) {}
-      if (ya) return;                                                    // como mucho una recarga por apertura
+      try {                                                              // como mucho una recarga por minuto (evita bucles)
+        ya = Date.now() - Number(sessionStorage.getItem('sw-recargado') || 0) < 60000;
+        if (!ya) sessionStorage.setItem('sw-recargado', String(Date.now()));
+      } catch (e) {}
+      if (ya) return;
       const a = document.activeElement;
       if (a && a.matches && a.matches('input, textarea, select')) return; // si estás escribiendo, no se interrumpe
       location.reload();
