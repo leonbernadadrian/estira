@@ -46,6 +46,17 @@
     <span class="l" id="l-campanas">Campana suave al cambiar de postura</span>
     <button class="switch" id="campanas" role="switch" aria-labelledby="l-campanas" aria-pressed="false"></button>
   </div>
+  <div class="fila" id="voz-fila">
+    <span class="l" id="l-voz">Voz que anuncia las posturas</span>
+    <button class="switch" id="voz" role="switch" aria-labelledby="l-voz" aria-pressed="false"></button>
+  </div>
+  <div class="voz-extra" id="voz-extra" hidden>
+    <p class="nota">Dice el nombre de cada postura y cuándo cambiar de lado, para que no tengas que mirar el móvil, y baja la música mientras habla. Usa las voces en español de tu dispositivo.</p>
+    <div class="fila">
+      <select id="voz-voz" aria-label="Voz" hidden></select>
+      <button class="btn ghost" id="voz-probar" type="button">Probar la voz</button>
+    </div>
+  </div>
 
   <div class="bar">
     <div class="in" style="flex-direction:column;align-items:stretch;gap:0">

@@ -114,6 +114,11 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 28px; }
 .switch[aria-pressed="true"] { background: var(--accent); }
 .switch[aria-pressed="true"]::after { transform: translateX(20px); }
 
+#home { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 170px); }   /* sitio para que la barra de abajo no tape el último ajuste */
+.voz-extra select { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--ink); background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 0 12px; height: 48px; }
+.voz-extra .btn { height: 48px; font-size: 15px; padding: 0 18px; flex: none; }
+.voz-extra .fila { justify-content: flex-start; }
+
 /* ---------- mi música ---------- */
 .musica { display: grid; gap: 8px; }
 .pista { display: grid; grid-template-columns: 40px 1fr 44px 44px; gap: 8px; align-items: center; padding: 8px 8px 8px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }

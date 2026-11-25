@@ -15,7 +15,9 @@ funciona sin internet. Al abrirla aparecen dos opciones:
   terminar, color según el día de la rutina). Solo mira al pasado: no hay planes a futuro. Tocar un día muestra solo ese día.
 - **Estiramientos** (`estira.html`): sesiones guiadas por zonas del cuerpo con tiempos y dibujos. La mayoría de posturas son
   sobre esterilla (a cuatro apoyos, tumbado, sentado en el suelo) y de yoga, de 30 a 50 segundos cada una según la duración.
-  Nunca repite una postura dentro de una sesión. La música es la tuya: se añade desde la propia app y se guarda solo en el
+  Nunca repite una postura dentro de una sesión. Opcional y apagada de serie: una **voz** que dice el nombre de cada
+  postura, cuándo cambiar de lado y el cierre (usa las voces en español del dispositivo, sin descargar nada y baja la
+  música mientras habla). Se activa con su interruptor, que trae un botón «Probar la voz» y un selector de voz. La música es la tuya: se añade desde la propia app y se guarda solo en el
   dispositivo (no se sube a internet).
 
 ## Tus datos

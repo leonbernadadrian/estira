@@ -11,7 +11,7 @@ const DURACIONES = [10, 15, 20, 30, 45];
 // Cuánto se mantiene cada postura según la duración de la sesión. Menos de un minuto (así se pidió):
 // 30-50 s, un poco más largas cuanto más larga es la sesión.
 const HOLD_POR_DURACION = { 10: 30, 15: 35, 20: 40, 30: 45, 45: 50 };
-const DEFECTO = { zonas: ['cuello', 'espalda'], minutos: 20, volumen: 70, campanas: false };
+const DEFECTO = { zonas: ['cuello', 'espalda'], minutos: 20, volumen: 70, campanas: false, voz: false, vozNombre: '' };
 const INTRO = 45, CIERRE_MIN = 45, T_NORMAL = 6, T_CAMBIO_POSICION = 10, T_LADO = 4, HOLD_MAX = 100;
 
 /* ---------- ajustes e historial (con try/catch: en modo privado el almacenamiento puede fallar) ---------- */
@@ -27,6 +27,8 @@ let ajustes = (() => {
   j.volumen = Math.min(100, Math.max(0, Number(j.volumen) || 0));
   if (j.v !== 2) { j.campanas = false; j.v = 2; } // se quitaron los sonidos generados: la campana empieza apagada
   else j.campanas = j.campanas === true;
+  j.voz = j.voz === true;                           // la voz es opcional y empieza apagada
+  if (typeof j.vozNombre !== 'string') j.vozNombre = '';
   return j;
 })();
 const guardar = () => escribir('estira.ajustes', ajustes);
@@ -154,6 +156,7 @@ function pintarInicio() {
     `<button class="chip" data-m="${m}" aria-pressed="${ajustes.minutos === m}">${m} min</button>`).join('');
   $('#volumen').value = ajustes.volumen;
   $('#campanas').setAttribute('aria-pressed', String(ajustes.campanas));
+  pintarVoz();
   pintarResumen();
   pintarMusica();
 }
@@ -320,6 +323,64 @@ async function pedirPantalla() {
 }
 function soltarPantalla() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
 
+/* ---------- voz opcional ----------
+   Usa la voz en español del propio dispositivo (no descarga nada) y empieza apagada. Dice el nombre de cada postura,
+   cuándo cambiar de lado y el cierre, y baja la música mientras habla. */
+const Voz = (() => {
+  const ok = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+  let actual = null, aviso = null, pendiente = null;
+  const calidad = v => (/premium|enhanced|mejorada|natural/i.test(v.name) ? 0 : 2) + (/^es[-_]ES/i.test(v.lang) ? 0 : 1);
+  const voces = () => ok ? speechSynthesis.getVoices().filter(v => /^es([-_]|$)/i.test(v.lang)).sort((a, b) => calidad(a) - calidad(b)) : [];
+  const elegida = () => { const l = voces(); return l.find(v => v.name === ajustes.vozNombre) || l[0] || null; };
+  const sinDuck = () => { if (!S || !S.pausa) Sonido.bajar(false); };
+  function hablar(texto) {
+    if (!ok || !texto) return;
+    const decir = () => {
+      try {
+        const u = new SpeechSynthesisUtterance(texto), v = elegida();
+        u.lang = 'es-ES';
+        if (v) { try { u.voice = v; u.lang = v.lang; } catch (e) {} }   // si la voz ya no existe, habla con la de por defecto
+        u.rate = 0.92; u.volume = 1;
+        const fin = () => { if (actual !== u) return; actual = null; clearTimeout(aviso); sinDuck(); Sonido.despertar(); };
+        u.onstart = () => { if (actual === u) Sonido.bajar(true); };
+        u.onend = fin; u.onerror = fin;
+        actual = u; clearTimeout(aviso); aviso = setTimeout(fin, 20000);   // por si el navegador no avisa del final
+        speechSynthesis.speak(u);
+      } catch (e) {}
+    };
+    clearTimeout(pendiente);
+    // La primera frase se dice en el mismo toque del usuario (lo exige iOS). Si ya hay una sonando, se corta y se dice la nueva.
+    if (speechSynthesis.speaking || speechSynthesis.pending) { actual = null; speechSynthesis.cancel(); pendiente = setTimeout(decir, 80); }
+    else decir();
+  }
+  function callar() {
+    clearTimeout(pendiente); clearTimeout(aviso); actual = null;
+    if (ok) { try { speechSynthesis.cancel(); } catch (e) {} }
+    sinDuck();
+  }
+  return { ok, voces, elegida, hablar, callar };
+})();
+
+function pintarVoz() {
+  $('#voz-fila').hidden = !Voz.ok;
+  $('#voz-extra').hidden = !Voz.ok || !ajustes.voz;
+  if (!Voz.ok) return;
+  $('#voz').setAttribute('aria-pressed', String(ajustes.voz));
+  const lista = Voz.voces(), sel = $('#voz-voz'), elegida = Voz.elegida();
+  sel.hidden = lista.length < 2;
+  sel.innerHTML = lista.map(v => `<option value="${esc(v.name)}"${elegida && v.name === elegida.name ? ' selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('');
+}
+if (Voz.ok) speechSynthesis.onvoiceschanged = pintarVoz;           // la lista de voces puede llegar tarde
+$('#voz').addEventListener('click', () => {
+  ajustes.voz = !ajustes.voz; guardar(); pintarVoz();
+  if (ajustes.voz) Voz.hablar('Voz activada.'); else Voz.callar();
+});
+$('#voz-probar').addEventListener('click', () => {
+  const b = sesionActual.bloques[0];
+  Voz.hablar(`Ahora, ${b ? b.p.nombre : 'barbilla al pecho'}. Cambia de lado.`);
+});
+$('#voz-voz').addEventListener('change', e => { ajustes.vozNombre = e.target.value; guardar(); Voz.hablar('Así suena esta voz.'); });
+
 /* ---------- sesión en marcha ---------- */
 let S = null;
 const durMs = paso => paso.dur * 1000 / ESC;
@@ -328,6 +389,17 @@ const CIRC = 2 * Math.PI * 54;
 
 const TEXTO_RESPIRA = 'Inhala por la nariz contando cuatro y suelta el aire despacio contando seis. Deja caer los hombros y la mandíbula.';
 const TEXTO_CIERRE = 'Quédate quieto, cierra los ojos y respira con calma. Siente el cuerpo más suelto y pesado.';
+
+// Lo que dice la voz en cada paso. En las posturas de un solo lado no dice nada al empezar: ya la nombró al prepararse.
+function fraseVoz(paso) {
+  const p = paso.p;
+  if (paso.tipo === 'respira') return 'Vamos a empezar. ' + TEXTO_RESPIRA;
+  if (paso.tipo === 'prepara') return `Ahora, ${p.nombre.replace(/\s*\([^)]*\)/g, '').replace('90/90', 'noventa noventa')}.`;   // sin paréntesis y con las cifras en palabras
+  if (paso.tipo === 'postura') return p.lados && paso.lado !== null ? `${p.lados[paso.lado]}.` : '';
+  if (paso.tipo === 'cambio') return 'Cambia de lado.';
+  if (paso.tipo === 'cierre') return 'Relajación final. ' + TEXTO_CIERRE;
+  return '';
+}
 
 function empezar() {
   if (S) return;
@@ -381,6 +453,9 @@ function entrarPaso(i) {
   else if (paso.tipo === 'cambio') Sonido.campana('lado');
   else if (paso.tipo === 'cierre') Sonido.campana('postura');
 
+  // voz (solo si la activaste)
+  if (ajustes.voz) Voz.hablar(fraseVoz(paso));
+
   pintarTiempo(0);
 }
 
@@ -421,6 +496,7 @@ function alternarPausa() {
     S.pausa = Date.now(); Sonido.bajar(true);
     b.textContent = '▶'; b.setAttribute('aria-label', 'Reanudar');
     if (resp) resp.style.animationPlayState = 'paused';
+    Voz.callar();
   } else {
     S.t0 += Date.now() - S.pausa; S.pausa = null; Sonido.bajar(false);
     b.textContent = '❚❚'; b.setAttribute('aria-label', 'Pausar');
@@ -450,10 +526,11 @@ function terminar(completa) {
   if (completa) {
     const h = leer('estira.historial', []); h.push(Date.now()); escribir('estira.historial', h.slice(-200));
     Sonido.campana('fin'); setTimeout(() => Sonido.parar(8), 3500);
+    if (ajustes.voz) Voz.hablar('Has terminado. Tómate un momento antes de levantarte.');
     $('#fin-txt').textContent = `${ses.bloques.length} posturas en ${ses.minutos} minutos. Tómate un momento antes de levantarte.`;
     mostrar('fin');
   } else {
-    Sonido.parar(2); pintarInicio(); mostrar('home');
+    Voz.callar(); Sonido.parar(2); pintarInicio(); mostrar('home');
   }
 }
 
