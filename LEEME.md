@@ -5,6 +5,9 @@ funciona sin internet. Al abrirla aparecen dos opciones:
 
 - **Gimnasio** (`gimnasio.html`): rutina de cuatro días, apuntar series, descansos con temporizador, historial,
   medidas, perfil y fuerza estimada. Los datos se guardan **solo en el dispositivo**.
+  Cada ejercicio tiene «Solo hoy: − serie / + serie / Quitar ejercicio», y debajo de la lista se puede añadir un
+  ejercicio de otro día. Esos cambios se guardan con la fecha de hoy (`rutina-hoy` en el almacenamiento local) y
+  no tocan la rutina: al día siguiente sale como siempre.
 - **Estiramientos** (`estira.html`): sesiones guiadas por zonas del cuerpo con tiempos y dibujos. La mayoría de posturas son
   sobre esterilla (a cuatro apoyos, tumbado, sentado en el suelo) y de yoga, de 30 a 50 segundos cada una según la duración.
   Nunca repite una postura dentro de una sesión. La música es la tuya: se añade desde la propia app y se guarda solo en el

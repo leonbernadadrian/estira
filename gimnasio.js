@@ -87,12 +87,13 @@ function renderDay() {
       const hoyE = h.find(x => x.fecha === isoHoy() && x.porSerie && !cerrada(x));
       const hechas = hoyE?.series || [];
       const ultimo = h.find(x => x !== hoyE);
-      const total = Math.max(plan.series[id] + (extras[id] || 0), hechas.length);
+      const total = Math.max(plan.series[id], hechas.length);
+      const registradoHoy = h.some(x => x.fecha === isoHoy() && !cerrada(x));
       const quedan = Array.from({ length: total - hechas.length }, (_, j) => hechas.length + j);
       return `<li>
       <div class="name">${name}</div>
       <button type="button" class="info-btn" data-info="${id}" aria-label="Cómo se hace: ${esc(name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="10" width="2" height="7" rx="1" fill="currentColor"/><circle cx="12" cy="7" r="1.3" fill="currentColor"/></svg></button>
-      <div class="dose">${plan.series[id] === numSeries(dose) ? dose : `${plan.series[id]} ×${dose.split("×")[1]}<s>${numSeries(dose)}</s>`}<small>series × reps</small></div>
+      <div class="dose">${total === numSeries(dose) ? dose : `${total} ×${dose.split("×")[1]}<s>${numSeries(dose)}</s>`}<small>series × reps</small></div>
       <div class="alt">${alt}</div>
       <div class="why">${why}</div>
       ${GRANDES.has(id) && !hechas.length ? calentamiento(id, id === primeraGrande, ultimo) : ""}
@@ -118,8 +119,13 @@ function renderDay() {
           ${ultimo && !ultimo.series ? `<span class="prev">Última vez: ${esc(ultimo.texto)}</span>` : ""}
         </div>
       </form>
+      <div class="ajuste"><span>Solo hoy:</span>
+        ${modo === "series" ? `<button type="button" data-serie-menos="${id}" aria-label="Quitar una serie de ${esc(name)}"${total > Math.max(hechas.length, 1) ? "" : " disabled"}>− serie</button><button type="button" data-serie-mas="${id}" aria-label="Añadir una serie a ${esc(name)}">+ serie</button>` : ""}
+        ${registradoHoy ? "" : `<button type="button" class="quitar" data-quitar="${id}" aria-label="Quitar ${esc(name)} de hoy">Quitar ejercicio</button>`}
+      </div>
       ${h.length && abiertos.has(id) ? `<ul class="hist">${h.map(x => filaHist(x, false)).join("")}</ul>` : ""}
     </li>`; }).join("")}</ol>
+    ${bloqueAjustes(d, plan)}
     ${d.extra && !tiempo ? `<div class="extra">${d.extra}</div>` : ""}
     ${zonaFinal(d)}`;
   main.querySelectorAll("[data-tiempo]").forEach(b => b.addEventListener("click", () => {
@@ -144,7 +150,13 @@ function renderDay() {
     if (e.key === "Enter") { e.preventDefault(); r.closest("form").querySelector(`[data-save="${r.dataset.k}"]`)?.click(); }
   }));
   main.querySelectorAll("[data-undo]").forEach(b => b.addEventListener("click", () => deshacerSerie(b.dataset.undo)));
-  main.querySelectorAll("[data-mas]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.mas; extras[id] = (extras[id] || 0) + 1; renderDay(); }));
+  main.querySelectorAll("[data-mas]").forEach(b => b.addEventListener("click", () => cambiarSeries(d, b.dataset.mas, 1)));
+  main.querySelectorAll("[data-serie-mas]").forEach(b => b.addEventListener("click", () => cambiarSeries(d, b.dataset.serieMas, 1)));
+  main.querySelectorAll("[data-serie-menos]").forEach(b => b.addEventListener("click", () => cambiarSeries(d, b.dataset.serieMenos, -1)));
+  main.querySelectorAll("[data-quitar]").forEach(b => b.addEventListener("click", () => quitarEjercicio(d, b.dataset.quitar)));
+  main.querySelectorAll("[data-poner]").forEach(b => b.addEventListener("click", () => ponerEjercicio(d, b.dataset.poner)));
+  main.querySelectorAll("[data-ajeno]").forEach(b => b.addEventListener("click", () => anadirAjeno(d, b.dataset.ajeno)));
+  main.querySelector("[data-det-mas]")?.addEventListener("toggle", e => { masAbierto = e.target.open; });
   main.querySelectorAll("form.log").forEach(f => f.addEventListener("submit", e => {
     e.preventDefault();
     const libre = f.querySelector("input.texto");
@@ -257,16 +269,39 @@ function duracion(plan, min) {
   if (plan.length) seg -= descanso(plan[plan.length - 1][0], min); // tras la última serie no se descansa
   return seg;
 }
+// ---- Cambios solo de hoy: quitar o añadir ejercicios y series sin tocar la rutina ----
+// Se guardan con la fecha de hoy: mañana la rutina vuelve a salir como siempre.
+let ajustes = {}, ajustesFecha = isoHoy(), masAbierto = false; // ajustes[día] = { quitar: [ids], ajenos: [ids de otros días], series: { id: +/- series } }
+try { const t = JSON.parse(localStorage.getItem("rutina-hoy")); if (t?.fecha === isoHoy() && t.dias && typeof t.dias === "object") ajustes = t.dias; } catch {}
+function guardarAjustes() { try { localStorage.setItem("rutina-hoy", JSON.stringify({ fecha: ajustesFecha, dias: ajustes })); } catch {} }
+function ajusteDia(d) {
+  if (ajustesFecha !== isoHoy()) { ajustes = {}; ajustesFecha = isoHoy(); }   // la app lleva abierta desde ayer
+  const a = ajustes[d.n] ||= {};
+  a.quitar ||= []; a.ajenos ||= []; a.series ||= {};
+  return a;
+}
+const ejercicioPorId = (id) => DAYS.flatMap(x => x.ex).find(e => e[0] === id);
+function ejerciciosHoy(d) {
+  const a = ajusteDia(d);
+  return [...d.ex.filter(e => !a.quitar.includes(e[0])), ...a.ajenos.map(ejercicioPorId).filter(Boolean)];
+}
 function planDia(d) {
-  const completo = Object.fromEntries(d.ex.map(e => [e[0], numSeries(e[3])]));
-  const lista = (sel) => d.ex.filter(e => sel[e[0]]).map(e => [e[0], sel[e[0]]]);
-  if (!tiempo || typeof d.n !== "number") return { ex: d.ex, series: completo, fuera: [], seg: duracion(lista(completo), 0) };
+  const p = planBase(d), dl = ajusteDia(d).series, series = { ...p.series };
+  Object.keys(series).forEach(id => { if (dl[id]) series[id] = Math.max(1, series[id] + dl[id]); });
+  return { ...p, series, seg: duracion(p.ex.map(e => [e[0], series[e[0]]]), tiempo || 0) };
+}
+function planBase(d) {
+  const exd = ejerciciosHoy(d);
+  const completo = Object.fromEntries(exd.map(e => [e[0], numSeries(e[3])]));
+  const lista = (sel) => exd.filter(e => sel[e[0]]).map(e => [e[0], sel[e[0]]]);
+  if (!tiempo || typeof d.n !== "number") return { ex: exd, series: completo, completo, fuera: [], seg: duracion(lista(completo), 0) };
   const sel = {}, limite = tiempo * 60, cabe = () => duracion(lista(sel), tiempo) <= limite;
   const hechasHoy = (id) => entradaHoy(id)?.series?.length || 0;
   // Lo que ya has apuntado hoy se queda siempre
-  d.ex.forEach(e => { const h = hechasHoy(e[0]); if (h) sel[e[0]] = Math.max(h, Math.min(2, completo[e[0]])); });
+  exd.forEach(e => { const h = hechasHoy(e[0]); if (h) sel[e[0]] = Math.max(h, Math.min(2, completo[e[0]])); });
   anadidos.forEach(id => { if (completo[id] && !sel[id]) sel[id] = Math.min(2, completo[id]); });
-  const orden = PRIORIDAD[d.n] || d.ex.map(e => e[0]);
+  ajusteDia(d).ajenos.forEach(id => { if (completo[id] && !sel[id]) sel[id] = Math.min(2, completo[id]); });
+  const orden = PRIORIDAD[d.n] || exd.map(e => e[0]);
   // 1º: entran ejercicios con 2 series, por prioridad
   orden.forEach(id => { if (sel[id] || !completo[id]) return; sel[id] = Math.min(2, completo[id]); if (!cabe()) delete sel[id]; });
   // 2º: si sobra tiempo, se recuperan series de una en una, por prioridad
@@ -274,7 +309,48 @@ function planDia(d) {
     if (!sel[id] || sel[id] >= completo[id]) return;
     sel[id]++; if (!cabe()) sel[id]--;
   });
-  return { ex: d.ex.filter(e => sel[e[0]]), series: sel, completo, fuera: d.ex.filter(e => !sel[e[0]]), seg: duracion(lista(sel), tiempo) };
+  return { ex: exd.filter(e => sel[e[0]]), series: sel, completo, fuera: exd.filter(e => !sel[e[0]]), seg: duracion(lista(sel), tiempo) };
+}
+function cambiarSeries(d, id, paso) {
+  const a = ajusteDia(d), p = planDia(d), hechas = entradaHoy(id)?.series?.length || 0;
+  if (!(id in p.series)) return;
+  const total = Math.max(p.series[id], hechas);
+  if (paso < 0 && (total <= Math.max(hechas, 1) || total !== p.series[id])) return;   // no se quitan series ya apuntadas
+  if (paso > 0 && total >= 12) return;
+  a.series[id] = (a.series[id] || 0) + (paso > 0 ? total + 1 - p.series[id] : -1);
+  guardarAjustes(); renderDay();
+}
+function quitarEjercicio(d, id) {
+  const a = ajusteDia(d);
+  if (a.ajenos.includes(id)) a.ajenos = a.ajenos.filter(x => x !== id);
+  else if (!a.quitar.includes(id)) a.quitar.push(id);
+  delete a.series[id];
+  if (anadidos.includes(id)) { anadidos = anadidos.filter(x => x !== id); guardarTiempo(); }
+  guardarAjustes(); renderDay();
+}
+function ponerEjercicio(d, id) {
+  const a = ajusteDia(d);
+  a.quitar = a.quitar.filter(x => x !== id);
+  guardarAjustes(); renderDay();
+}
+function anadirAjeno(d, id) {
+  const a = ajusteDia(d);
+  if (!a.ajenos.includes(id) && ejercicioPorId(id)) a.ajenos.push(id);
+  masAbierto = true;                                   // por si quieres añadir más de uno seguido
+  guardarAjustes(); renderDay();
+  document.querySelector("#day ol.ex > li:last-child")?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function bloqueAjustes(d, plan) {
+  const a = ajusteDia(d);
+  const quitados = a.quitar.map(id => d.ex.find(e => e[0] === id)).filter(Boolean);
+  const otros = DAYS.filter(x => x.n !== d.n).map(x => ({ x, ex: x.ex.filter(e => !a.ajenos.includes(e[0]) && !plan.ex.some(p => p[0] === e[0])) })).filter(g => g.ex.length);
+  return `<section class="ajustes" aria-label="Cambios solo de hoy">
+    ${quitados.length ? `<p>Quitados hoy (tócalos para volver a ponerlos):</p><div class="tiempo-op">${quitados.map(e => `<button type="button" data-poner="${e[0]}">+ ${esc(e[1])}</button>`).join("")}</div>` : ""}
+    <details class="mas-ej" data-det-mas${masAbierto ? " open" : ""}><summary>+ Añadir un ejercicio de otro día</summary>
+      ${otros.map(g => `<p>Día ${g.x.n} · ${esc(g.x.title)}</p><div class="tiempo-op">${g.ex.map(e => `<button type="button" data-ajeno="${e[0]}">+ ${esc(e[1])}</button>`).join("")}</div>`).join("")}
+    </details>
+    <p class="nota-aj">Estos cambios valen solo para hoy: tu rutina no se modifica y mañana sale como siempre.</p>
+  </section>`;
 }
 function bloqueTiempo(d, plan) {
   if (typeof d.n !== "number") return `<div class="tiempo"><p><b>≈ ${fmtMin(plan.seg)}</b> con el calentamiento · ${plan.ex.length} ejercicios · ${Object.values(plan.series).reduce((x, y) => x + y, 0)} series</p></div>`;
@@ -364,7 +440,7 @@ const e1rm = (x) => { const kg = num(x.kg), r = Number(x.reps); return kg && r ?
 // Una anotación de hoy ya pertenece a un entrenamiento cerrado si empezó antes de que se cerrara
 function cerrada(h) { return sesiones.some(x => x.fecha === h.fecha && x.fin && h.ts <= x.fin); }
 function datosHoy(d) {
-  const ids = new Set(d.ex.map(e => e[0]));
+  const ids = new Set([...d.ex.map(e => e[0]), ...ajusteDia(d).ajenos]);
   return historial.filter(h => h.fecha === isoHoy() && ids.has(h.ej) && !cerrada(h));
 }
 function zonaFinal(d) {
@@ -658,7 +734,6 @@ function resumen(series) {
   return kgs.length === 1 ? `${kgs[0]} kg × ${series.map(x => x.reps).join(", ")}` : series.map(x => sinKg(x) ? `${x.reps} reps` : `${x.kg} kg × ${x.reps}`).join(" · ");
 }
 // Serie a serie: una entrada por ejercicio y día que va creciendo
-let extras = {};
 function entradaHoy(ej) { return historial.find(h => h.ej === ej && h.fecha === isoHoy() && h.porSerie && !cerrada(h)); }
 async function escribirHoy(ej, series) {
   const id = entradaHoy(ej)?.id || `${isoHoy()}_${ej}_${Date.now().toString(36)}`;
