@@ -1,29 +1,80 @@
-/* Motor de sonido: todo se genera aquí (sin archivos), así funciona sin internet y nunca suena igual dos veces.
-   Capas: pads (acordes lentos), gotas (gotas de agua afinadas), olas (muy suaves) y cuencos.
-   Un "ambiente" es una mezcla de capas; si eliges varios, la app pasa de uno a otro con un fundido largo. */
+/* Sonido de la app.
+   - Música propia: las canciones que añades tú (mp3, m4a...) se guardan SOLO en este dispositivo (IndexedDB) y suenan
+     durante la sesión, mezcladas al azar y con un fundido suave entre una y otra. No se suben a ningún sitio.
+   - Campana suave opcional al cambiar de postura (generada, sin archivos). */
 
+// Un archivo de audio vacío. iPhone solo deja reproducir si empieza dentro de un toque del usuario; se "cebó"
+// el reproductor con esto en el toque y después se cambia por la canción de verdad.
+const SILENCIO = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+
+/* ---------------- biblioteca de canciones (en el dispositivo) ---------------- */
+const Musica = (() => {
+  const BD = 'estira-musica', ALMACEN = 'pistas', CLAVE_APAGADAS = 'estira.musica-apagadas';
+  let bd = null;
+
+  function abrir() {
+    if (bd) return Promise.resolve(bd);
+    return new Promise((ok, mal) => {
+      const r = indexedDB.open(BD, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(ALMACEN, { keyPath: 'id', autoIncrement: true });
+      r.onsuccess = () => { bd = r.result; ok(bd); };
+      r.onerror = () => mal(r.error);
+    });
+  }
+  const leerApagadas = () => { try { return JSON.parse(localStorage.getItem(CLAVE_APAGADAS) || '[]'); } catch (e) { return []; } };
+  const guardarApagadas = l => { try { localStorage.setItem(CLAVE_APAGADAS, JSON.stringify(l)); } catch (e) {} };
+
+  return {
+    soportado: () => 'indexedDB' in window,
+    // Lista sin el contenido de las canciones (pesan mucho): id, nombre, tamaño y si está incluida.
+    async lista() {
+      const db = await abrir(), apagadas = leerApagadas();
+      return new Promise((ok, mal) => {
+        const salida = [], c = db.transaction(ALMACEN).objectStore(ALMACEN).openCursor();
+        c.onsuccess = e => {
+          const cur = e.target.result;
+          if (cur) { const { blob, ...meta } = cur.value; salida.push({ ...meta, activa: !apagadas.includes(meta.id) }); cur.continue(); }
+          else ok(salida);
+        };
+        c.onerror = () => mal(c.error);
+      });
+    },
+    async obtener(id) {
+      const db = await abrir();
+      return new Promise((ok, mal) => { const r = db.transaction(ALMACEN).objectStore(ALMACEN).get(id); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); });
+    },
+    async anadir(archivos) {
+      const db = await abrir();
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}   // pide que el sistema no las borre
+      let n = 0;
+      for (const f of archivos) {
+        if (f.type && !/^audio\//.test(f.type) && !/\.(mp3|m4a|aac|wav|ogg|oga|flac|opus|webm)$/i.test(f.name)) continue;
+        await new Promise((ok, mal) => {
+          const t = db.transaction(ALMACEN, 'readwrite');
+          t.objectStore(ALMACEN).add({ nombre: f.name.replace(/\.[^.]+$/, ''), tam: f.size, tipo: f.type, fecha: Date.now(), blob: f });
+          t.oncomplete = () => { n++; ok(); };
+          t.onerror = () => mal(t.error); t.onabort = () => mal(t.error);
+        });
+      }
+      return n;
+    },
+    async borrar(id) {
+      const db = await abrir();
+      await new Promise((ok, mal) => { const t = db.transaction(ALMACEN, 'readwrite'); t.objectStore(ALMACEN).delete(id); t.oncomplete = ok; t.onerror = () => mal(t.error); });
+      guardarApagadas(leerApagadas().filter(x => x !== id));
+    },
+    incluir(id, si) { const l = leerApagadas().filter(x => x !== id); if (!si) l.push(id); guardarApagadas(l); }
+  };
+})();
+
+/* ---------------- reproductor y campana ---------------- */
 const Sonido = (() => {
   let ctx = null, master, limiter, musicBus, bellBus, reverb, reverbSend, analizador = null;
-  let pad = null, gotas = null, mar = null;
-  let volume = 0.7, bellsOn = true, ducked = false, running = false, sesion = false;
-  let ambientes = ['pads'], sceneIdx = 0;
-  let sceneTimer = null, bowlTimer = null, dropTimer = null, pruebaTimer = null;
-  let bowlRate = 0.6, dropRate = 0;
-  let noiseBuf = null;
-
-  //                 pad   gotas  olas  cuencos
-  const ESCENAS = {
-    pads:    { pad: 1.00, drops: 0.0, sea: 0.0, bowls: 0.45 },
-    gotas:   { pad: 0.55, drops: 1.0, sea: 0.0, bowls: 0.0 },
-    olas:    { pad: 0.60, drops: 0.0, sea: 1.0, bowls: 0.0 },
-    cuencos: { pad: 0.45, drops: 0.0, sea: 0.0, bowls: 1.0 }
-  };
-  const NIVEL = { pad: 0.34, drops: 0.9, sea: 0.65 };         // niveles base, medidos para que todos suenen parecido y suave
-  const ACORDES = [                                           // notas MIDI: quintas y cuartas, siempre consonantes
-    [50, 57, 64, 69], [43, 50, 57, 62], [47, 54, 61, 66], [45, 52, 59, 64]
-  ];
-  const ESCALA = [62, 64, 66, 69, 71, 74, 76];                // pentatónica de re
+  let pista = null, gainPista = null, urlActual = null;
+  let cola = [], pos = 0, generacion = 0, fallos = 0, cebando = false, saliendo = false;
+  let volume = 0.7, bellsOn = false, ducked = false, running = false, sesion = false, pruebaTimer = null;
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+  const barajar = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   function crear() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -36,132 +87,70 @@ const Sonido = (() => {
     limiter.attack.value = 0.01; limiter.release.value = 0.4;
     master = ctx.createGain(); master.gain.value = 0;
     master.connect(limiter); limiter.connect(ctx.destination);
+    musicBus = ctx.createGain(); musicBus.connect(master);
+    bellBus = ctx.createGain(); bellBus.connect(master);
 
-    musicBus = ctx.createGain(); musicBus.gain.value = 1; musicBus.connect(master);
-    bellBus = ctx.createGain(); bellBus.gain.value = 1; bellBus.connect(master);
-
-    reverb = ctx.createConvolver(); reverb.buffer = impulso(3.4, 2.3);
-    reverbSend = ctx.createGain(); reverbSend.gain.value = 0.6;
+    reverb = ctx.createConvolver(); reverb.buffer = impulso(3.0, 2.4);
+    reverbSend = ctx.createGain(); reverbSend.gain.value = 0.5;
     reverbSend.connect(reverb); reverb.connect(master);
-
-    noiseBuf = ruido(10);
   }
-
   function impulso(seg, caida) {
     const n = Math.floor(ctx.sampleRate * seg), b = ctx.createBuffer(2, n, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) {
-      const d = b.getChannelData(c);
-      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, caida);
-    }
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, caida); }
     return b;
   }
+  const nivelMaestro = () => Math.pow(volume, 1.6) * 0.95 * (ducked ? 0.35 : 1);
 
-  function ruido(seg) {                                       // ruido rosa (solo lo usan las olas)
-    const n = Math.floor(ctx.sampleRate * seg), b = ctx.createBuffer(2, n, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) {
-      const d = b.getChannelData(c);
-      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-      for (let i = 0; i < n; i++) {
-        const w = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759;
-        b2 = 0.96900 * b2 + w * 0.1538520; b3 = 0.86650 * b3 + w * 0.3104856;
-        b4 = 0.55000 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.0168980;
-        d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+  /* ----- canciones ----- */
+  function prepararReproductor() {
+    if (pista) return;
+    pista = new Audio(); pista.preload = 'auto'; pista.setAttribute('playsinline', '');
+    const nodo = ctx.createMediaElementSource(pista);
+    gainPista = ctx.createGain(); gainPista.gain.value = 0;
+    nodo.connect(gainPista); gainPista.connect(musicBus);
+    pista.addEventListener('ended', () => { if (!cebando) siguiente(); });
+    pista.addEventListener('error', () => { if (!cebando && running) { fallos++; siguiente(); } });
+    pista.addEventListener('timeupdate', () => {                 // fundido de salida en los últimos segundos
+      if (cebando || saliendo || !pista.duration || !isFinite(pista.duration)) return;
+      const resta = pista.duration - pista.currentTime;
+      if (resta < 4) {
+        saliendo = true;
+        const t = ctx.currentTime;
+        gainPista.gain.cancelScheduledValues(t); gainPista.gain.setValueAtTime(gainPista.gain.value, t);
+        gainPista.gain.linearRampToValueAtTime(0, t + Math.max(0.3, resta));
       }
-    }
-    return b;
-  }
-
-  function lfo(freq, profundidad, destino, fase) {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.value = freq; g.gain.value = profundidad;
-    o.connect(g); g.connect(destino); o.start(ctx.currentTime + (fase || 0));
-    return o;
-  }
-
-  /* ---------- pads ---------- */
-  function crearPad() {
-    const out = ctx.createGain(); out.gain.value = 0;
-    out.connect(musicBus); out.connect(reverbSend);
-    const filtro = ctx.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = 900; filtro.Q.value = 0.4;
-    filtro.connect(out);
-    lfo(0.045, 380, filtro.frequency);
-    const voces = [];
-    ACORDES[0].forEach((m, i) => {
-      [['sine', 0], ['triangle', 7]].forEach(([tipo, cents], j) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = tipo; o.frequency.value = mtof(m); o.detune.value = cents + (i - 1.5) * 2;
-        g.gain.value = (j === 0 ? 0.22 : 0.07) / (1 + i * 0.15);
-        o.connect(g); g.connect(filtro); o.start();
-        voces.push({ o, i });
-      });
-    });
-    return { out, voces, acorde: 0, timer: null };
-  }
-  function siguienteAcorde() {
-    if (!pad || !running) return;
-    pad.acorde = (pad.acorde + 1 + Math.floor(Math.random() * 2)) % ACORDES.length;
-    const notas = ACORDES[pad.acorde], t = ctx.currentTime;
-    pad.voces.forEach(v => v.o.frequency.setTargetAtTime(mtof(notas[v.i]), t, 2.6));
-    pad.timer = setTimeout(siguienteAcorde, 17000 + Math.random() * 9000);
-  }
-
-  /* ---------- gotas: gotas de agua afinadas con la escala del pad, con mucha reverberación ---------- */
-  function crearGotas() {
-    const out = ctx.createGain(); out.gain.value = 0;
-    out.connect(musicBus); out.connect(reverbSend);
-    return { out };
-  }
-  function gota() {
-    if (!gotas) return;
-    const t = ctx.currentTime + 0.02;
-    const nota = ESCALA[Math.floor(Math.random() * ESCALA.length)] + (Math.random() < 0.55 ? 12 : 24);
-    const f = mtof(nota), dur = 0.28 + Math.random() * 0.45, amp = 0.18 + Math.random() * 0.4;
-    const salida = ctx.createGain(); salida.gain.value = 1;
-    let destino = salida;
-    if (ctx.createStereoPanner) {                             // cada gota cae en un sitio distinto
-      const p = ctx.createStereoPanner(); p.pan.value = Math.random() * 1.6 - 0.8; salida.connect(p); destino = p;
-    }
-    destino.connect(gotas.out);
-    [[1, 1, 1], [2.01, 0.18, 0.5]].forEach(([r, a, d]) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(f * r * 0.9, t);
-      o.frequency.exponentialRampToValueAtTime(f * r * 1.07, t + 0.05);   // el "bloop" sube un poco de tono
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(amp * a, t + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur * d);
-      o.connect(g); g.connect(salida); o.start(t); o.stop(t + dur * d + 0.1);
     });
   }
-  function bucleGotas() {
-    if (!running) return;
-    if (dropRate > 0.02 && !ducked) {
-      gota();
-      if (Math.random() < 0.2) setTimeout(() => { if (running && !ducked) gota(); }, 110 + Math.random() * 220);
-    }
-    dropTimer = setTimeout(bucleGotas, (450 + Math.random() * 2000) / Math.max(0.3, dropRate));
+  function cebar() {                                              // dentro del toque del usuario
+    cebando = true; pista.src = SILENCIO;
+    const p = pista.play(); if (p && p.catch) p.catch(() => {});
+  }
+  async function tocar(i, gen) {
+    if (!cola.length || gen !== generacion || !running) return;
+    const rec = await Musica.obtener(cola[i % cola.length].id).catch(() => null);
+    if (gen !== generacion || !running) return;
+    if (!rec) { fallos++; return siguiente(); }
+    const url = URL.createObjectURL(rec.blob), vieja = urlActual;
+    urlActual = url; cebando = false; saliendo = false;
+    const t = ctx.currentTime;
+    gainPista.gain.cancelScheduledValues(t); gainPista.gain.setValueAtTime(0, t);
+    pista.src = url;
+    try { await pista.play(); } catch (e) { if (vieja) URL.revokeObjectURL(vieja); fallos++; return siguiente(); }
+    if (gen !== generacion) return;
+    fallos = 0;
+    gainPista.gain.linearRampToValueAtTime(1, ctx.currentTime + 3);   // entra poco a poco
+    if (vieja) URL.revokeObjectURL(vieja);
+  }
+  function siguiente() {
+    if (!running || !cola.length || fallos > cola.length) return;       // si todas fallan, se queda en silencio
+    pos = (pos + 1) % cola.length;
+    tocar(pos, generacion);
   }
 
-  /* ---------- olas: muy graves y suaves, con subidas y bajadas lentas ---------- */
-  function crearMar() {
-    const out = ctx.createGain(); out.gain.value = 0; out.connect(musicBus); out.connect(reverbSend);
-    [[12.4, 0], [16.1, 5]].forEach(([periodo, fase]) => {
-      const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.start(0, Math.random() * 6);
-      const f = ctx.createBiquadFilter(), g = ctx.createGain();
-      f.type = 'lowpass'; f.frequency.value = 240; f.Q.value = 0.3;
-      g.gain.value = 0.5;
-      s.connect(f); f.connect(g); g.connect(out);
-      lfo(1 / periodo, 0.32, g.gain, fase);                   // sube y baja entre 0,18 y 0,82
-      lfo(1 / periodo, 90, f.frequency, fase);
-    });
-    return { out };
-  }
-
-  /* ---------- cuencos ---------- */
-  function cuenco(freq, volumen, destino, cuando, dur) {
+  /* ----- campana suave (generada) ----- */
+  function cuenco(freq, volumen, cuando, dur) {
     const t = cuando || ctx.currentTime, out = ctx.createGain();
-    out.gain.value = volumen; out.connect(destino || bellBus); out.connect(reverbSend);
+    out.gain.value = volumen; out.connect(bellBus); out.connect(reverbSend);
     [[1, 1, 1], [2.756, 0.5, 0.62], [5.404, 0.26, 0.4], [8.933, 0.12, 0.25]].forEach(([r, a, d]) => {
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = 'sine'; o.frequency.value = freq * r + (Math.random() - 0.5) * 0.6;
@@ -172,116 +161,93 @@ const Sonido = (() => {
       o.connect(g); g.connect(out); o.start(t); o.stop(t + largo + 0.1);
     });
   }
-  function cuencoAmbiente() {
-    if (!running) return;
-    if (bowlRate > 0.02 && !ducked) {
-      // notas medias y agudas: los graves casi no se oyen en el altavoz de un móvil
-      const nota = ESCALA[Math.floor(Math.random() * ESCALA.length)] + (Math.random() < 0.4 ? 12 : 0);
-      cuenco(mtof(nota), 0.42 * Math.min(1, bowlRate + 0.25), musicBus, undefined, 9);
-    }
-    const base = bowlRate > 0.8 ? 7000 : 20000;
-    bowlTimer = setTimeout(cuencoAmbiente, base + Math.random() * base * 0.8);
-  }
 
-  /* ---------- escenas ---------- */
-  function aplicarEscena(nombre, seg) {
-    const e = ESCENAS[nombre] || { pad: 0, drops: 0, sea: 0, bowls: 0 }, t = ctx.currentTime;
-    const k = seg === undefined ? 8 : seg;
-    const sube = (capa, v) => capa && capa.out.gain.setTargetAtTime(v, t, Math.max(0.2, k / 3));
-    sube(pad, e.pad * NIVEL.pad); sube(gotas, e.drops * NIVEL.drops); sube(mar, e.sea * NIVEL.sea);
-    bowlRate = e.bowls; dropRate = e.drops;
-  }
-  function ciclo() {
-    if (!running) return;
-    if (ambientes.length > 1) {
-      sceneIdx = (sceneIdx + 1) % ambientes.length;
-      aplicarEscena(ambientes[sceneIdx], 10);
-    }
-    sceneTimer = setTimeout(ciclo, 210000);                   // cada 3,5 minutos cambia de ambiente
-  }
-
-  function nivelMaestro() { return Math.pow(volume, 1.6) * 0.9 * (ducked ? 0.35 : 1); }
-
-  /* ---------- API ---------- */
   return {
     soportado: () => !!(window.AudioContext || window.webkitAudioContext),
 
-    // Debe llamarse desde un toque del usuario (requisito de iPhone).
-    // vistaPrevia = true: sonido de prueba desde la pantalla de inicio, no es una sesión.
-    async iniciar(opciones, vistaPrevia) {
+    // Debe llamarse desde un toque del usuario (requisito del iPhone).
+    async iniciar(opciones) {
       if (!this.soportado()) return;
       if (!ctx) crear();
-      if (opciones) { volume = opciones.volumen; bellsOn = opciones.campanas; ambientes = (opciones.ambientes || []).slice(); }
-      if (!vistaPrevia) { sesion = true; clearTimeout(pruebaTimer); }
-      try { await ctx.resume(); } catch (e) {}
-      if (!running) {
-        running = true; ducked = false;
-        pad = pad || crearPad(); gotas = gotas || crearGotas(); mar = mar || crearMar();
-        pad.timer = setTimeout(siguienteAcorde, 14000);
-        sceneTimer = setTimeout(ciclo, 210000);
-        bowlTimer = setTimeout(cuencoAmbiente, vistaPrevia ? 1500 : 6000);
-        dropTimer = setTimeout(bucleGotas, 800);
-      }
-      sceneIdx = Math.floor(Math.random() * Math.max(1, ambientes.length));
-      aplicarEscena(ambientes[sceneIdx], vistaPrevia ? 1.5 : 2);
+      if (opciones) { volume = opciones.volumen; bellsOn = !!opciones.campanas; }
+      sesion = true; clearTimeout(pruebaTimer);
+      prepararReproductor(); cebar();                              // todo esto va ANTES del primer await
+      const reanudar = ctx.resume().catch(() => {});
+      running = true; ducked = false; generacion++; fallos = 0;
+      const gen = generacion;
       master.gain.cancelScheduledValues(ctx.currentTime);
       master.gain.setTargetAtTime(nivelMaestro(), ctx.currentTime, 1.0);
+      await reanudar;
+      const lista = (await Musica.lista().catch(() => [])).filter(m => m.activa);
+      cola = barajar(lista);
+      let ultima = null; try { ultima = Number(localStorage.getItem('estira.ultimaPista')); } catch (e) {}
+      if (cola.length > 1 && cola[0].id === ultima) cola.push(cola.shift());     // no empezar siempre por la misma
+      if (cola.length) { try { localStorage.setItem('estira.ultimaPista', String(cola[0].id)); } catch (e) {} }
+      pos = 0;
+      if (gen === generacion) tocar(0, gen);
     },
 
-    // Escucha un ambiente unos 9 segundos desde la pantalla de inicio.
-    async probar(id, volumenUI) {
+    // Escuchar una canción desde la lista, sin empezar una sesión.
+    async probar(id, vol) {
       if (!this.soportado() || sesion) return;
+      if (!ctx) crear();
+      if (vol !== undefined) volume = vol;
+      prepararReproductor(); cebar();
+      const reanudar = ctx.resume().catch(() => {});
       clearTimeout(pruebaTimer);
-      await this.iniciar({ volumen: volumenUI, campanas: false, ambientes: [id] }, true);
-      if (id === 'cuencos') cuenco(mtof(ESCALA[2] + 12), 0.42, musicBus, undefined, 9);
-      if (id === 'gotas') gota();
-      pruebaTimer = setTimeout(() => { if (!sesion) this.parar(2.5); }, 9000);
+      running = true; ducked = false; generacion++; fallos = 0;
+      const gen = generacion;
+      master.gain.cancelScheduledValues(ctx.currentTime);
+      master.gain.setTargetAtTime(nivelMaestro(), ctx.currentTime, 0.3);
+      await reanudar;
+      cola = [{ id }]; pos = 0;
+      if (gen === generacion) tocar(0, gen);
+      pruebaTimer = setTimeout(() => { if (!sesion) this.parar(2); }, 25000);
     },
-    pararPrueba() { if (!sesion) { clearTimeout(pruebaTimer); this.parar(1.2); } },
+    pararPrueba() { if (!sesion) { clearTimeout(pruebaTimer); this.parar(0.8); } },
 
     parar(segundos) {
       if (!ctx) return;
-      sesion = false; clearTimeout(pruebaTimer);
+      sesion = false; clearTimeout(pruebaTimer); generacion++;
+      if (typeof this.alParar === 'function') setTimeout(this.alParar, 0);   // la pantalla actualiza el botón ▶/■
       if (!running) return;
       running = false;
-      clearTimeout(sceneTimer); clearTimeout(bowlTimer); clearTimeout(dropTimer); if (pad) clearTimeout(pad.timer);
-      const k = (segundos === undefined ? 5 : segundos);
+      const k = segundos === undefined ? 5 : segundos;
       master.gain.cancelScheduledValues(ctx.currentTime);
-      master.gain.setTargetAtTime(0, ctx.currentTime, k / 3);
-      setTimeout(() => {                                      // silencia las capas y duerme el motor para no gastar batería
+      master.gain.setTargetAtTime(0, ctx.currentTime, Math.max(0.05, k / 3));
+      setTimeout(() => {                                          // se para del todo para no gastar batería
         if (running || !ctx) return;
-        [pad, gotas, mar].forEach(c => c && c.out.gain.setValueAtTime(0, ctx.currentTime));
+        try { pista.pause(); } catch (e) {}
+        if (urlActual) { URL.revokeObjectURL(urlActual); urlActual = null; }
         try { ctx.suspend(); } catch (e) {}
       }, k * 1000 + 500);
     },
-    despertar() { if (ctx && running && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } },
+    despertar() {                                                 // al volver a la app tras bloquear el móvil
+      if (!ctx || !running) return;
+      if (ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} }
+      if (pista && pista.paused && !cebando && urlActual) { const p = pista.play(); if (p && p.catch) p.catch(() => {}); }
+    },
     volumen(v) { volume = v; if (ctx && running) master.gain.setTargetAtTime(nivelMaestro(), ctx.currentTime, 0.2); },
     campanas(on) { bellsOn = on; },
     bajar(si) { ducked = si; if (ctx && running) master.gain.setTargetAtTime(nivelMaestro(), ctx.currentTime, 0.4); },
-    ambientes(lista) {
-      ambientes = lista.slice();
-      if (ctx && running && sesion) { sceneIdx = 0; aplicarEscena(ambientes[0], 4); }
-    },
     enMarcha: () => running,
-
-    // Nivel RMS (0..1) de lo que está sonando. Sirve para comprobar volúmenes.
-    nivel() {
+    estado: () => (ctx ? ctx.state : 'sin-iniciar'),
+    nivel() {                                                     // nivel RMS (0..1) de lo que suena, para comprobaciones
       if (!ctx) return null;
       if (!analizador) { analizador = ctx.createAnalyser(); analizador.fftSize = 2048; limiter.connect(analizador); }
       const d = new Float32Array(analizador.fftSize); analizador.getFloatTimeDomainData(d);
       let s = 0; for (let i = 0; i < d.length; i++) s += d[i] * d[i];
       return Math.sqrt(s / d.length);
     },
-    estado: () => (ctx ? ctx.state : 'sin-iniciar'),
 
-    // Campanas de aviso. Suaves y espaciadas, para no sacar de la relajación.
+    // Campana suave al cambiar de postura (solo si está activada).
     campana(tipo) {
       if (!ctx || !bellsOn || ctx.state !== 'running') return;
       const t = ctx.currentTime;
-      if (tipo === 'postura')      cuenco(392.0, 0.36, null, t, 6.5);
-      else if (tipo === 'prepara') cuenco(293.7, 0.26, null, t, 4.5);
-      else if (tipo === 'lado')  { cuenco(329.6, 0.3, null, t, 5); cuenco(440.0, 0.26, null, t + 0.9, 5); }
-      else if (tipo === 'fin')   { cuenco(392.0, 0.36, null, t, 8); cuenco(294.0, 0.32, null, t + 1.6, 9); cuenco(196.0, 0.36, null, t + 3.4, 11); }
+      if (tipo === 'postura')      cuenco(392.0, 0.22, t, 6);
+      else if (tipo === 'prepara') cuenco(293.7, 0.16, t, 4);
+      else if (tipo === 'lado')  { cuenco(329.6, 0.2, t, 4.5); cuenco(440.0, 0.17, t + 0.9, 4.5); }
+      else if (tipo === 'fin')   { cuenco(392.0, 0.24, t, 7); cuenco(294.0, 0.22, t + 1.6, 8); cuenco(196.0, 0.24, t + 3.4, 10); }
     }
   };
 })();

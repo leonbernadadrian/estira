@@ -114,6 +114,19 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 28px; }
 .switch[aria-pressed="true"] { background: var(--accent); }
 .switch[aria-pressed="true"]::after { transform: translateX(20px); }
 
+/* ---------- mi música ---------- */
+.musica { display: grid; gap: 8px; }
+.pista { display: grid; grid-template-columns: 40px 1fr 44px 44px; gap: 8px; align-items: center; padding: 8px 8px 8px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+.pista-n { min-width: 0; }
+.pista-n b { display: block; font-weight: 560; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pista-n small { color: var(--mute); font-size: 12.5px; }
+.pista-on { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 14px; color: transparent; transition: all .2s; }
+.pista-on[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pista-play, .pista-x { height: 40px; border-radius: 12px; color: var(--mute); font-size: 15px; }
+.pista-play { color: var(--accent); }
+.pista-x.seguro { grid-column: span 1; color: #ffb4a8; font-size: 12px; }
+.vacio { color: var(--mute); font-size: 14.5px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 16px; }
+
 /* ---------- barra inferior ---------- */
 .bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;

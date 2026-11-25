@@ -32,15 +32,18 @@
 
   <p class="nota" id="nota-dur"></p>
 
-  <h2>Sonido</h2>
-  <div class="chips" id="ambientes"></div>
+  <h2>Mi música</h2>
+  <div id="musica" class="musica"></div>
+  <button class="btn ghost" id="musica-anadir" type="button" style="width:100%;margin-top:10px">Añadir canciones</button>
+  <input type="file" id="musica-archivo" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac,.opus" multiple hidden>
+  <p class="nota" id="musica-estado">Elige archivos de audio (mp3, m4a…). Se guardan solo en este dispositivo, no se suben a internet. Suenan mezcladas durante la sesión.</p>
   <div class="fila">
     <span class="l">Volumen</span>
     <input type="range" id="volumen" min="0" max="100" value="70" aria-label="Volumen de la música">
   </div>
   <div class="fila">
-    <span class="l" id="l-campanas">Campana al cambiar de postura</span>
-    <button class="switch" id="campanas" role="switch" aria-labelledby="l-campanas" aria-pressed="true"></button>
+    <span class="l" id="l-campanas">Campana suave al cambiar de postura</span>
+    <button class="switch" id="campanas" role="switch" aria-labelledby="l-campanas" aria-pressed="false"></button>
   </div>
 
   <div class="bar">

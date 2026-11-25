@@ -5,8 +5,10 @@ funciona sin internet. Al abrirla aparecen dos opciones:
 
 - **Gimnasio** (`gimnasio.html`): rutina de cuatro días, apuntar series, descansos con temporizador, historial,
   medidas, perfil y fuerza estimada. Los datos se guardan **solo en el dispositivo**.
-- **Estiramientos** (`estira.html`): sesiones guiadas por zonas del cuerpo con tiempos, dibujos y sonido relajante.
-  Nunca repite una postura dentro de una sesión.
+- **Estiramientos** (`estira.html`): sesiones guiadas por zonas del cuerpo con tiempos y dibujos. La mayoría de posturas son
+  sobre esterilla (a cuatro apoyos, tumbado, sentado en el suelo) y de yoga, de 30 a 50 segundos cada una según la duración.
+  Nunca repite una postura dentro de una sesión. La música es la tuya: se añade desde la propia app y se guarda solo en el
+  dispositivo (no se sube a internet).
 
 ## Tus datos
 Todo se guarda en el propio dispositivo (no hay servidor ni cuenta). El móvil y el ordenador son independientes.
@@ -24,7 +26,7 @@ Añade `?rapido` a la dirección de `estira.html` y todo va 10 veces más depris
 ## Archivos
 - `index.html`: pantalla de inicio con las dos opciones.
 - `gimnasio.html`, `gimnasio.css`, `gimnasio.js`: el gimnasio.
-- `estira.html`, `styles.css`, `app.js`, `audio.js`, `data.js`: estiramientos (el sonido se genera, no hay archivos de audio).
+- `estira.html`, `styles.css`, `app.js`, `audio.js`, `data.js`: estiramientos (`audio.js` guarda y reproduce tu música).
 - `sw.js`, `registro-sw.js`, `manifest.webmanifest`, `icons/`: instalación y modo sin conexión.
   Si cambias archivos de la app, sube el número de `CACHE` en `sw.js` para que se vuelvan a guardar.
 - `img/`: dibujos de las posturas.

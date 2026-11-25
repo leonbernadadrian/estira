@@ -79,7 +79,8 @@ const POSTURAS = [
 ];
 
 /* ---------- VARIANTES NUEVAS ----------
-   Más posturas para que una sesión larga no repita ninguna. Se activan cuando sus dibujos están revisados. */
+   Más posturas, casi todas sobre esterilla (a cuatro apoyos, tumbado, sentado en el suelo) y de yoga.
+   Una postura entra en las sesiones cuando su id está en NUEVAS_ACTIVAS, es decir, cuando su dibujo está revisado. */
 const POSTURAS_NUEVAS = [
   /* CUELLO Y HOMBROS */
   { id: 'cuello-giro', zona: 'cuello', etapa: 2, nombre: 'Giro de cabeza', lados: ['Mirando a un lado', 'Mirando al otro lado'], img: 'img/cuello-giro.jpg',
@@ -94,6 +95,8 @@ const POSTURAS_NUEVAS = [
     texto: 'Entrelaza los dedos detrás de la nuca y abre los codos hacia los lados. Lleva el pecho hacia delante y mira al frente.' },
   { id: 'cuello-pared-pecho', zona: 'cuello', etapa: 1, nombre: 'Pecho en la pared', lados: ['Primer brazo', 'Segundo brazo'], img: 'img/cuello-pared-pecho.jpg',
     texto: 'Apoya el antebrazo en una pared o marco de puerta con el codo a la altura del hombro y gira el cuerpo suavemente hacia el otro lado.' },
+  { id: 'cuello-vaca-sentada', zona: 'cuello', etapa: 2, nombre: 'Brazos de vaca sentado', lados: ['Primer brazo arriba', 'Segundo brazo arriba'], img: 'img/cuello-vaca-sentada.jpg',
+    texto: 'Sentado con las piernas cruzadas, sube un brazo y dobla el codo hacia la espalda; lleva el otro por abajo e intenta unir las manos. Usa una toalla si no llegas.' },
 
   /* ESPALDA */
   { id: 'espalda-vaca', zona: 'espalda', etapa: 3, nombre: 'Espalda arqueada (vaca)', lados: null, img: 'img/espalda-vaca.jpg',
@@ -102,46 +105,49 @@ const POSTURAS_NUEVAS = [
     texto: 'Desde cuatro apoyos, pasa un brazo por debajo del otro y apoya el hombro y la oreja en el suelo. Respira hacia la espalda alta.' },
   { id: 'espalda-nino-lateral', zona: 'espalda', etapa: 3, nombre: 'Niño hacia un lado', lados: ['Primer lado', 'Segundo lado'], img: 'img/espalda-nino-lateral.jpg',
     texto: 'En la postura del niño, camina con las manos hacia un lado hasta notar el costado contrario. Respira hacia esa zona.' },
+  { id: 'espalda-cachorro', zona: 'espalda', etapa: 3, nombre: 'Cachorro', lados: null, img: 'img/espalda-cachorro.jpg',
+    texto: 'Desde cuatro apoyos, camina con las manos hacia delante y baja el pecho y la frente hacia el suelo, con la cadera alta sobre las rodillas. Respira hacia los hombros.' },
   { id: 'espalda-lateral-sentada', zona: 'espalda', etapa: 2, nombre: 'Media luna sentada', lados: ['Inclinación a la derecha', 'Inclinación a la izquierda'], img: 'img/espalda-lateral-sentada.jpg',
     texto: 'Sentado con las piernas cruzadas, apoya una mano en el suelo y estira el otro brazo por encima de la cabeza hacia el lado. Alarga el costado.' },
   { id: 'espalda-torsion-sentada', zona: 'espalda', etapa: 2, nombre: 'Torsión sentada', lados: ['Primer giro', 'Segundo giro'], img: 'img/espalda-torsion-sentada.jpg',
     texto: 'Sentado con la espalda larga, gira el torso hacia un lado con una mano en la rodilla contraria y la otra detrás. Mira por encima del hombro.' },
-  { id: 'espalda-rodilla-pecho', zona: 'espalda', etapa: 5, nombre: 'Una rodilla al pecho', lados: ['Primera pierna', 'Segunda pierna'], img: 'img/espalda-rodilla-pecho.jpg',
-    texto: 'Tumbado boca arriba, abraza una rodilla contra el pecho mientras la otra pierna descansa estirada en el suelo.' },
+  { id: 'espalda-cobra', zona: 'espalda', etapa: 4, nombre: 'Cobra', lados: null, img: 'img/espalda-cobra.jpg',
+    texto: 'Boca abajo, apoya las palmas bajo los hombros y sube el pecho despacio, con los codos algo doblados. Mira al frente y deja la zona lumbar larga y sin apretar.' },
+  { id: 'espalda-puente', zona: 'espalda', etapa: 5, nombre: 'Puente suave', lados: null, img: 'img/espalda-puente.jpg',
+    texto: 'Tumbado con las rodillas dobladas y los pies en el suelo, sube la cadera despacio hasta formar una línea. Aprieta suave los glúteos y respira hacia el pecho.' },
+  { id: 'espalda-libro-abierto', zona: 'espalda', etapa: 5, nombre: 'Libro abierto', lados: ['Primer lado', 'Segundo lado'], img: 'img/espalda-libro-abierto.jpg',
+    texto: 'Tumbado de lado con las rodillas dobladas y los brazos al frente, abre el brazo de arriba hacia atrás como si abrieras un libro. Mira la mano y suelta el pecho.' },
 
   /* CADERAS Y GLÚTEOS */
-  { id: 'cadera-zancada-lateral', zona: 'caderas', etapa: 1, nombre: 'Zancada lateral', lados: ['Primer lado', 'Segundo lado'], img: 'img/cadera-zancada-lateral.jpg',
-    texto: 'De pie con las piernas muy abiertas, flexiona una rodilla y lleva la cadera hacia ese lado manteniendo la otra pierna estirada.' },
-  { id: 'cadera-figura4-sentada', zona: 'caderas', etapa: 2, nombre: 'Figura 4 sentada', lados: ['Primera pierna', 'Segunda pierna'], img: 'img/cadera-figura4-sentada.jpg',
-    texto: 'Sentado en una silla, apoya un tobillo sobre la rodilla contraria e inclina el torso hacia delante con la espalda larga.' },
-  { id: 'cadera-90-90', zona: 'caderas', etapa: 2, nombre: 'Cadera 90/90', lados: ['Primer lado', 'Segundo lado'], img: 'img/cadera-90-90.jpg',
-    texto: 'Sentado con las dos piernas dobladas a 90° hacia el mismo lado. Mantén la espalda larga e inclínate suavemente hacia delante.' },
   { id: 'cadera-cruzada-adelante', zona: 'caderas', etapa: 2, nombre: 'Piernas cruzadas e inclinación', lados: ['Primera pierna delante', 'Segunda pierna delante'], img: 'img/cadera-cruzada-adelante.jpg',
     texto: 'Sentado con las piernas cruzadas, camina con las manos hacia delante y baja el torso. En el segundo lado cambia la pierna de delante.' },
+  { id: 'cadera-90-90', zona: 'caderas', etapa: 2, nombre: 'Cadera 90/90', lados: ['Primer lado', 'Segundo lado'], img: 'img/cadera-90-90.jpg',
+    texto: 'Sentado con las dos piernas dobladas a 90° hacia el mismo lado. Mantén la espalda larga e inclínate suavemente hacia delante.' },
+  { id: 'cadera-pinza-abierta', zona: 'caderas', etapa: 2, nombre: 'Pinza con piernas abiertas', lados: null, img: 'img/cadera-pinza-abierta.jpg',
+    texto: 'Sentado con las piernas abiertas en V, inclínate hacia delante con la espalda larga y los brazos al frente. Busca el estiramiento por dentro de las piernas.' },
   { id: 'cadera-paloma', zona: 'caderas', etapa: 3, nombre: 'Paloma', lados: ['Primera pierna delante', 'Segunda pierna delante'], img: 'img/cadera-paloma.jpg',
     texto: 'Desde cuatro apoyos, lleva una rodilla hacia delante con la espinilla cruzada y estira la otra pierna atrás. Baja el torso con calma.' },
+  { id: 'cadera-lagarto', zona: 'caderas', etapa: 3, nombre: 'Lagarto', lados: ['Primera pierna delante', 'Segunda pierna delante'], img: 'img/cadera-lagarto.jpg',
+    texto: 'Desde cuatro apoyos, lleva un pie al exterior de la mano del mismo lado y baja la cadera. Apóyate en los antebrazos si puedes.' },
   { id: 'cadera-rana', zona: 'caderas', etapa: 3, nombre: 'Rana', lados: null, img: 'img/cadera-rana.jpg',
     texto: 'A cuatro apoyos, abre las rodillas a los lados y lleva la cadera hacia atrás. Apoya los antebrazos y respira. Sal con calma si molesta.' },
   { id: 'cadera-mariposa-tumbada', zona: 'caderas', etapa: 5, nombre: 'Mariposa tumbada', lados: null, img: 'img/cadera-mariposa-tumbada.jpg',
     texto: 'Tumbado boca arriba, junta las plantas de los pies y deja caer las rodillas a los lados. Manos sobre el vientre y respiración lenta.' },
 
   /* PIERNAS Y PIES */
-  { id: 'pierna-colgado', zona: 'piernas', etapa: 1, nombre: 'Flexión colgada', lados: null, img: 'img/pierna-colgado.jpg',
-    texto: 'De pie, deja caer el torso hacia delante con las rodillas ligeramente flexionadas. Deja colgar cabeza y brazos y respira.' },
-  { id: 'pierna-isquios-pie', zona: 'piernas', etapa: 1, nombre: 'Isquios con pierna elevada', lados: ['Primera pierna', 'Segunda pierna'], img: 'img/pierna-isquios-pie.jpg',
-    texto: 'De pie, apoya un talón en un escalón o una silla baja con la pierna estirada. Inclínate hacia delante con la espalda larga.' },
   { id: 'pierna-cabeza-rodilla', zona: 'piernas', etapa: 2, nombre: 'Cabeza a la rodilla', lados: ['Primera pierna', 'Segunda pierna'], img: 'img/pierna-cabeza-rodilla.jpg',
     texto: 'Sentado con una pierna estirada y la planta del otro pie junto al muslo, inclínate hacia la pierna estirada con la espalda larga.' },
-  { id: 'pierna-tobillo', zona: 'piernas', etapa: 2, nombre: 'Círculos de tobillo', lados: ['Primer tobillo', 'Segundo tobillo'], img: 'img/pierna-tobillo.jpg',
-    texto: 'Sentado, cruza una pierna sobre la otra y dibuja círculos lentos con el pie, en los dos sentidos. Suelta el tobillo.' },
+  { id: 'pierna-media-pinza', zona: 'piernas', etapa: 3, nombre: 'Media pinza', lados: ['Primera pierna delante', 'Segunda pierna delante'], img: 'img/pierna-media-pinza.jpg',
+    texto: 'Con una rodilla en el suelo, estira la otra pierna al frente con el talón apoyado. Inclínate con la espalda larga hacia el pie.' },
   { id: 'pierna-perro', zona: 'piernas', etapa: 3, nombre: 'Perro boca abajo', lados: null, img: 'img/pierna-perro.jpg',
     texto: 'Desde cuatro apoyos, sube la cadera hacia el techo formando una V. Flexiona las rodillas si hace falta y pedalea suave con los talones.' },
   { id: 'pierna-cuadriceps-lado', zona: 'piernas', etapa: 5, nombre: 'Cuádriceps tumbado de lado', lados: ['Primera pierna', 'Segunda pierna'], img: 'img/pierna-cuadriceps-lado.jpg',
-    texto: 'Tumbado de lado, lleva el talón de arriba hacia el glúteo y sujeta el pie. Mantén las rodillas juntas y la cadera hacia delante.' }
+    texto: 'Tumbado de lado, lleva el talón de arriba hacia el glúteo y sujeta el pie. Mantén las rodillas juntas y la cadera hacia delante.' },
+  { id: 'pierna-estiron-tumbado', zona: 'piernas', etapa: 5, nombre: 'Estirón tumbado', lados: null, img: 'img/pierna-estiron-tumbado.jpg',
+    texto: 'Tumbado, estira los brazos por encima de la cabeza y las piernas hacia delante, alargando todo el cuerpo. Suelta y vuelve a alargarte con cada respiración.' }
 ];
-// Solo entran las que ya tienen su dibujo revisado. Se van añadiendo ids a esta lista según llegan los dibujos.
-// Pendientes de dibujo nuevo: espalda-nino-lateral (idéntico al niño), espalda-torsion-sentada (sin torsión) y las
-// 13 de caderas y piernas que faltan por generar.
+
+// Las de abajo ya tienen su dibujo revisado. Se van añadiendo ids según llegan los dibujos nuevos.
 const NUEVAS_ACTIVAS = [
   'cuello-giro', 'cuello-diagonal', 'cuello-aguila', 'cuello-vaca-brazos', 'cuello-manos-nuca', 'cuello-pared-pecho',
   'espalda-vaca', 'espalda-hilo-aguja', 'espalda-lateral-sentada'

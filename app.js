@@ -8,15 +8,10 @@ const params = new URLSearchParams(location.search);
 const ESC = params.has('rapido') ? (Number(params.get('rapido')) > 0 ? Number(params.get('rapido')) : 10) : 1;
 
 const DURACIONES = [10, 15, 20, 30, 45];
-// Cuánto se mantiene cada postura según la duración de la sesión. El estiramiento estático suele hacerse 30-60 s;
-// para relajar y no ir con prisa subo a 45-90 s: más tiempo cuanto más larga es la sesión.
-const HOLD_POR_DURACION = { 10: 45, 15: 55, 20: 60, 30: 75, 45: 90 };
-const AMBIENTES = [
-  { id: 'pads', t: 'Pads suaves' }, { id: 'gotas', t: 'Gotas' },
-  { id: 'olas', t: 'Olas suaves' }, { id: 'cuencos', t: 'Cuencos' }
-];
-const AMBIENTE_ANTIGUO = { lluvia: 'gotas', mar: 'olas' };      // nombres de versiones anteriores
-const DEFECTO = { zonas: ['cuello', 'espalda'], minutos: 20, ambientes: ['pads'], volumen: 70, campanas: true };
+// Cuánto se mantiene cada postura según la duración de la sesión. Menos de un minuto (así se pidió):
+// 30-50 s, un poco más largas cuanto más larga es la sesión.
+const HOLD_POR_DURACION = { 10: 30, 15: 35, 20: 40, 30: 45, 45: 50 };
+const DEFECTO = { zonas: ['cuello', 'espalda'], minutos: 20, volumen: 70, campanas: false };
 const INTRO = 45, CIERRE_MIN = 45, T_NORMAL = 6, T_CAMBIO_POSICION = 10, T_LADO = 4, HOLD_MAX = 100;
 
 /* ---------- ajustes e historial (con try/catch: en modo privado el almacenamiento puede fallar) ---------- */
@@ -28,11 +23,10 @@ let ajustes = (() => {
   j.zonas = (j.zonas || []).filter(z => ZONAS.some(x => x.id === z));
   if (!j.zonas.length) j.zonas = DEFECTO.zonas.slice();
   if (!DURACIONES.includes(j.minutos)) j.minutos = DEFECTO.minutos;
-  delete j.hold;                                  // ya no se elige: lo decide la app
-  j.ambientes = (j.ambientes || []).map(a => AMBIENTE_ANTIGUO[a] || a)
-    .filter((a, i, l) => AMBIENTES.some(x => x.id === a) && l.indexOf(a) === i);
+  delete j.hold; delete j.ambientes;              // ya no existen: el tiempo lo decide la app y la música la pones tú
   j.volumen = Math.min(100, Math.max(0, Number(j.volumen) || 0));
-  j.campanas = j.campanas !== false;
+  if (j.v !== 2) { j.campanas = false; j.v = 2; } // se quitaron los sonidos generados: la campana empieza apagada
+  else j.campanas = j.campanas === true;
   return j;
 })();
 const guardar = () => escribir('estira.ajustes', ajustes);
@@ -58,8 +52,10 @@ function construirSesion(a) {
   const porRecencia = z => POSTURAS.filter(p => p.zona === z)
     .map(p => ({ p, k: (usos[p.id] || 0) + Math.random() * ruido }))
     .sort((x, y) => x.k - y.k).map(x => x.p);
-  const colas = a.zonas.map(porRecencia);
-  const otras = ZONAS.map(z => z.id).filter(z => !a.zonas.includes(z)).map(porRecencia);
+  // La mayoría de posturas son en el suelo (esterilla, cuatro apoyos, yoga). Las de pie son 1 de cada 5 como mucho.
+  const dividir = lista => ({ suelo: lista.filter(p => p.etapa >= 2), pie: lista.filter(p => p.etapa === 1) });
+  const colas = a.zonas.map(z => dividir(porRecencia(z)));
+  const otras = ZONAS.map(z => z.id).filter(z => !a.zonas.includes(z)).map(z => dividir(porRecencia(z)));
 
   // Tiempo objetivo por postura según la duración. Nunca se alargan más allá de HOLD_MAX: si las zonas marcadas
   // no tienen posturas para llenar el tiempo, se completa con posturas de otras zonas (y se avisa).
@@ -75,9 +71,11 @@ function construirSesion(a) {
     while (quedan && holds < objetivo) {
       quedan = false;
       for (const c of grupo) {
-        if (!c.length) continue;
+        if (!c.suelo.length && !c.pie.length) continue;
         quedan = true;
-        const p = c.shift(); elegidas.push({ p, extra: deOtraZona }); holds += p.lados ? 2 : 1;
+        const quierePie = elegidas.length % 5 === 4;                       // la 5.ª, la 10.ª...: de pie
+        const cola = quierePie ? (c.pie.length ? c.pie : c.suelo) : (c.suelo.length ? c.suelo : c.pie);
+        const p = cola.shift(); elegidas.push({ p, extra: deOtraZona }); holds += p.lados ? 2 : 1;
         if (holds >= objetivo) break;
       }
     }
@@ -154,12 +152,58 @@ function pintarInicio() {
   }).join('');
   $('#duracion').innerHTML = DURACIONES.map(m =>
     `<button class="chip" data-m="${m}" aria-pressed="${ajustes.minutos === m}">${m} min</button>`).join('');
-  $('#ambientes').innerHTML = AMBIENTES.map(a =>
-    `<button class="chip" data-a="${a.id}" aria-pressed="${ajustes.ambientes.includes(a.id)}">${a.t}</button>`).join('');
   $('#volumen').value = ajustes.volumen;
   $('#campanas').setAttribute('aria-pressed', String(ajustes.campanas));
   pintarResumen();
+  pintarMusica();
 }
+
+/* ---------- mi música (canciones guardadas en este dispositivo) ---------- */
+const mb = bytes => bytes >= 1048576 ? (bytes / 1048576).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let escuchando = null;                                                   // id de la canción que suena en la lista
+Sonido.alParar = () => { if (escuchando !== null) { escuchando = null; pintarMusica(); } };   // la prueba se apagó sola
+
+async function pintarMusica() {
+  const caja = $('#musica');
+  if (!Musica.soportado()) { caja.innerHTML = '<p class="nota">Este navegador no permite guardar música en el dispositivo.</p>'; return; }
+  let lista = [];
+  try { lista = await Musica.lista(); } catch (e) { caja.innerHTML = '<p class="nota">No se pudo abrir tu música. Prueba a cerrar y abrir la app.</p>'; return; }
+  if (!lista.length) {
+    caja.innerHTML = '<p class="vacio">Aún no tienes música. Descarga canciones relajantes y pulsa «Añadir canciones»: se guardan solo en este dispositivo y suenan durante la sesión.</p>';
+    return;
+  }
+  caja.innerHTML = lista.map(m => `<div class="pista" data-id="${m.id}">
+      <button class="pista-on" aria-pressed="${m.activa}" aria-label="Incluir «${esc(m.nombre)}» en las sesiones"><span>✓</span></button>
+      <div class="pista-n"><b>${esc(m.nombre)}</b><small>${mb(m.tam)}${m.activa ? '' : ' · no se usa'}</small></div>
+      <button class="pista-play" aria-label="Escuchar «${esc(m.nombre)}»">${escuchando === m.id ? '■' : '▶'}</button>
+      <button class="pista-x" aria-label="Quitar «${esc(m.nombre)}»">✕</button>
+    </div>`).join('');
+}
+$('#musica-anadir').addEventListener('click', () => $('#musica-archivo').click());
+$('#musica-archivo').addEventListener('change', async e => {
+  const archivos = [...e.target.files]; e.target.value = '';
+  if (!archivos.length) return;
+  $('#musica-estado').textContent = 'Guardando…';
+  try {
+    const n = await Musica.anadir(archivos);
+    $('#musica-estado').textContent = n ? `Añadidas ${n} ${n === 1 ? 'canción' : 'canciones'}.` : 'Esos archivos no parecen audio (prueba con mp3 o m4a).';
+  } catch (err) { $('#musica-estado').textContent = 'No se pudo guardar (¿falta espacio en el dispositivo?).'; }
+  pintarMusica();
+});
+$('#musica').addEventListener('click', async e => {
+  const fila = e.target.closest('.pista'); if (!fila) return;
+  const id = Number(fila.dataset.id);
+  if (e.target.closest('.pista-on')) { Musica.incluir(id, fila.querySelector('.pista-on').getAttribute('aria-pressed') !== 'true'); pintarMusica(); }
+  else if (e.target.closest('.pista-x')) {
+    if (!e.target.dataset.seguro) { e.target.dataset.seguro = '1'; e.target.textContent = '¿Quitar?'; e.target.classList.add('seguro'); return; }
+    if (escuchando === id) { Sonido.pararPrueba(); escuchando = null; }
+    await Musica.borrar(id); pintarMusica();
+  } else if (e.target.closest('.pista-play')) {
+    if (escuchando === id) { Sonido.pararPrueba(); escuchando = null; } else { escuchando = id; Sonido.probar(id, ajustes.volumen / 100); }
+    pintarMusica();
+  }
+});
 
 function pintarResumen() {
   const s = sesionActual;
@@ -179,18 +223,7 @@ $('#duracion').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   ajustes.minutos = Number(b.dataset.m); guardar(); rehacer(); pintarInicio();
 });
-$('#ambientes').addEventListener('click', e => {
-  const b = e.target.closest('.chip'); if (!b) return;
-  const a = b.dataset.a, i = ajustes.ambientes.indexOf(a);
-  if (i >= 0) ajustes.ambientes.splice(i, 1); else ajustes.ambientes.push(a);
-  guardar(); pintarInicio();
-  // Al marcar un ambiente suena unos segundos para que lo escuches sin empezar una sesión.
-  if (i < 0) Sonido.probar(a, ajustes.volumen / 100); else Sonido.pararPrueba();
-});
 $('#volumen').addEventListener('input', e => { ajustes.volumen = Number(e.target.value); guardar(); Sonido.volumen(ajustes.volumen / 100); });
-$('#volumen').addEventListener('change', () => {         // al soltar el control, suena una muestra al nuevo volumen
-  if (!Sonido.enMarcha() && ajustes.ambientes.length) Sonido.probar(ajustes.ambientes[0], ajustes.volumen / 100);
-});
 $('#campanas').addEventListener('click', () => {
   ajustes.campanas = !ajustes.campanas; guardar(); Sonido.campanas(ajustes.campanas);
   $('#campanas').setAttribute('aria-pressed', String(ajustes.campanas));
@@ -246,7 +279,8 @@ function empezar() {
   rehacer();
   S = { ses, pasos: ses.pasos, i: 0, t0: Date.now(), pausa: null, timer: null, ultimaEtiqueta: '' };
   mostrar('session');
-  Sonido.iniciar({ volumen: ajustes.volumen / 100, campanas: ajustes.campanas, ambientes: ajustes.ambientes });
+  escuchando = null;
+  Sonido.iniciar({ volumen: ajustes.volumen / 100, campanas: ajustes.campanas });
   pedirPantalla();
   entrarPaso(0);
   S.timer = setInterval(tick, 200);
@@ -392,7 +426,7 @@ document.addEventListener('visibilitychange', () => {
 /* ---------- arranque ---------- */
 pintarInicio();
 mostrar('home');
-window.Estira = { sesion: () => sesionActual, estado: () => S, construirSesion, ajustes: () => ajustes };
+window.Estira = { sesion: () => sesionActual, estado: () => S, construirSesion, ajustes: () => ajustes, pintarMusica };
 
 // El modo sin conexión se registra desde registro-sw.js (lo carga estira.html).
 })();
