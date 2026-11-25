@@ -148,8 +148,13 @@ const POSTURAS_NUEVAS = [
 ];
 
 // Las de abajo ya tienen su dibujo revisado. Se van añadiendo ids según llegan los dibujos nuevos.
+// Sin activar: cadera-rana (su dibujo salió como un lagarto; hay que rehacerlo).
 const NUEVAS_ACTIVAS = [
   'cuello-giro', 'cuello-diagonal', 'cuello-aguila', 'cuello-vaca-brazos', 'cuello-manos-nuca', 'cuello-pared-pecho',
-  'espalda-vaca', 'espalda-hilo-aguja', 'espalda-lateral-sentada'
+  'cuello-vaca-sentada',
+  'espalda-vaca', 'espalda-hilo-aguja', 'espalda-lateral-sentada', 'espalda-cobra', 'espalda-puente', 'espalda-cachorro',
+  'espalda-libro-abierto', 'espalda-nino-lateral', 'espalda-torsion-sentada',
+  'cadera-paloma', 'cadera-90-90', 'cadera-mariposa-tumbada', 'cadera-cruzada-adelante', 'cadera-lagarto', 'cadera-pinza-abierta',
+  'pierna-cabeza-rodilla', 'pierna-media-pinza', 'pierna-perro', 'pierna-cuadriceps-lado', 'pierna-estiron-tumbado'
 ];
 POSTURAS.push(...POSTURAS_NUEVAS.filter(p => NUEVAS_ACTIVAS.includes(p.id)));
